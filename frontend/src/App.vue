@@ -17,6 +17,14 @@ const adminToken = ref('admin-demo-2026')
 const endTime = ref('')
 const showAdmin = ref(false)
 
+// Seeding & Bracket setup
+const seedingMode = ref('custom') // 'custom' (theo thứ tự sắp xếp) | 'shuffle' (ngẫu nhiên)
+const createTab = ref('input') // 'input' | 'preview'
+const initialOpenOption = ref('all') // 'all' | 'round1' | 'round1_2'
+
+// File upload ref
+const fileInput = ref(null)
+
 // 1. Inline Music Player state
 const activePlayerSong = ref(null)
 
@@ -57,7 +65,6 @@ async function openTournament(id) {
     tournament.value = await api(`/tournaments/${id}?voterKey=${encodeURIComponent(voterKey)}`)
     selectedRound.value = firstPendingRound()
     page.value = 'rounds'
-    // Deep linking: update URL hash
     window.location.hash = `/tournament/${id}`
   } catch (e) { error.value = e.message }
   finally { loading.value = false }
@@ -75,20 +82,235 @@ function checkUrlHash() {
 
 function firstPendingRound() {
   const rounds = tournament.value?.rounds || []
-  const pending = rounds.findIndex(r => r.matches.some(m => m.songA && m.songB && !m.winner && !m.closed))
-  return pending >= 0 ? pending : Math.max(0, rounds.length - 1)
+  const pending = rounds.findIndex(r => !r.closed && r.matches.some(m => m.songA && m.songB && !m.winner && !m.closed))
+  return pending >= 0 ? pending : 0
 }
 
+// ─── Fast Song Input & Parsing ───
+const parsedSongs = computed(() => {
+  return songText.value.split(/\r?\n/).map((line, idx) => {
+    const raw = line.trim()
+    if (!raw) return null
+    let link = null
+    let songPart = raw
+    const pipeIdx = raw.lastIndexOf('|')
+    if (pipeIdx > 0) {
+      const maybeLnk = raw.substring(pipeIdx + 1).trim()
+      if (maybeLnk.startsWith('http://') || maybeLnk.startsWith('https://')) {
+        link = maybeLnk
+        songPart = raw.substring(0, pipeIdx).trim()
+      }
+    }
+    // Support tab-separated (from Excel/Sheets)
+    const tabParts = songPart.split('\t')
+    let title = ''
+    let artist = ''
+    if (tabParts.length >= 2) {
+      title = tabParts[0].trim()
+      artist = tabParts[1].trim()
+      if (tabParts.length >= 3 && !link && tabParts[2].trim().startsWith('http')) {
+        link = tabParts[2].trim()
+      }
+    } else {
+      // Strip leading numbering: "1. ", "01 - ", "[1] "
+      const clean = songPart.replace(/^\s*(?:\[?\d+\]?[\.\-\)\s]+)/, '').trim()
+      const parts = clean.split(/\s+[—–-]\s+/, 2)
+      title = parts[0]?.trim() || clean
+      artist = parts[1]?.trim() || ''
+    }
+    return { id: idx, title, artist, link, raw }
+  }).filter(Boolean)
+})
+
+// Bracket Calculation Helper
+const bracketStats = computed(() => {
+  const count = parsedSongs.value.length
+  if (count < 2) return null
+  let size = 1
+  while (size < count) size *= 2
+  const byes = size - count
+  const rounds = Math.log2(size)
+  return { count, size, byes, rounds }
+})
+
+// Preview of Round 1 Pairings
+const previewPairings = computed(() => {
+  const songs = [...parsedSongs.value]
+  if (songs.length < 2) return []
+  const count = songs.length
+  let size = 1
+  while (size < count) size *= 2
+  const byes = size - count
+  const pairs = []
+  let pos = 1
+
+  // Bye matches
+  for (let i = 0; i < byes; i++) {
+    pairs.push({
+      num: pos++,
+      songA: songs[i],
+      songB: null,
+      isBye: true,
+      indexA: i,
+      indexB: -1
+    })
+  }
+
+  // Regular matches
+  for (let i = byes; i < count; i += 2) {
+    pairs.push({
+      num: pos++,
+      songA: songs[i],
+      songB: i + 1 < count ? songs[i + 1] : null,
+      isBye: false,
+      indexA: i,
+      indexB: i + 1 < count ? i + 1 : -1
+    })
+  }
+  return pairs
+})
+
+// Reordering helper
+function moveSongInList(index, dir) {
+  const lines = songText.value.split(/\r?\n/).filter(s => s.trim())
+  const target = index + dir
+  if (target < 0 || target >= lines.length) return
+  const temp = lines[index]
+  lines[index] = lines[target]
+  lines[target] = temp
+  songText.value = lines.join('\n')
+}
+
+function removeSongFromList(index) {
+  const lines = songText.value.split(/\r?\n/).filter(s => s.trim())
+  lines.splice(index, 1)
+  songText.value = lines.join('\n')
+}
+
+function shuffleSongList() {
+  const lines = songText.value.split(/\r?\n/).filter(s => s.trim())
+  for (let i = lines.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lines[i], lines[j]] = [lines[j], lines[i]]
+  }
+  songText.value = lines.join('\n')
+  flash('Đã xáo trộn ngẫu nhiên toàn bộ danh sách bài hát! 🔀')
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const text = e.target.result
+    if (text) {
+      songText.value = text.trim()
+      flash(`Đã nhập ${parsedSongs.value.length} bài hát từ file ${file.name}! 📁`)
+    }
+  }
+  reader.readAsText(file)
+}
+
+function triggerFileUpload() {
+  fileInput.value?.click()
+}
+
+// Preset Loaders
+function loadPreset(count) {
+  if (count === 8) {
+    songText.value = `Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg
+Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00
+Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk
+Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM
+Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ
+Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o
+Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A
+Again — YUI | https://youtu.be/2DYYVp4QXew`
+  } else if (count === 16) {
+    songText.value = `Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg
+Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00
+Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk
+Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM
+Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ
+Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o
+Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A
+Again — YUI | https://youtu.be/2DYYVp4QXew
+Cry Baby — Official HIGE DANdism | https://youtu.be/O1bhZgkC4Gw
+KICK BACK — Kenshi Yonezu | https://youtu.be/M2cckDmNLMI
+Shinunoga E-Wa — Fujii Kaze | https://youtu.be/dusrG66olzo
+Bling-Bang-Bang-Born — Creepy Nuts | https://youtu.be/mLW35YMz1eo
+Suzume — RADWIMPS feat. Toaka | https://youtu.be/grasqUvQ2X0
+SPECIALZ — King Gnu | https://youtu.be/fhzKLBZJC3w
+Nandemonaiya — RADWIMPS | https://youtu.be/n3e6M521rso
+Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
+  } else if (count === 32) {
+    const list = []
+    const base = [
+      'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
+      'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
+      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
+      'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
+      'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
+      'Again — YUI | https://youtu.be/2DYYVp4QXew',
+      'Cry Baby — Official HIGE DANdism',
+      'KICK BACK — Kenshi Yonezu',
+      'Shinunoga E-Wa — Fujii Kaze',
+      'Bling-Bang-Bang-Born — Creepy Nuts',
+      'Suzume — RADWIMPS feat. Toaka',
+      'SPECIALZ — King Gnu',
+      'Nandemonaiya — RADWIMPS',
+      'Lemon — Kenshi Yonezu',
+      'Racing Into The Night (Yoru ni Kakeru) — YOASOBI',
+      'Monster — YOASOBI',
+      'Chouchou Musubi — Aimer',
+      'Zankyosanka — Aimer',
+      'Crossing Field — LiSA',
+      'Catch the Moment — LiSA',
+      'Inferno — Mrs. GREEN APPLE',
+      'Ao to Natsu — Mrs. GREEN APPLE',
+      'Peace Sign — Kenshi Yonezu',
+      'Grand Escape — RADWIMPS feat. Toko Miura',
+      'Otonablue — ATARASHII GAKKO!',
+      'Kaibutsu — YOASOBI',
+      'First Love — Hikaru Utada',
+      'One Last Kiss — Hikaru Utada',
+      'Homura — LiSA',
+      'DADDY ! DADDY ! DO ! — Masayuki Suzuki feat. Airi Suzuki'
+    ]
+    songText.value = base.join('\n')
+  }
+  flash(`Đã nạp bộ mẫu chuẩn ${count} bài!`)
+}
+
+// ─── Create Tournament with Seeding & Round Config ───
 async function createTournament() {
   error.value = ''
-  const songLines = songText.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-  if (songLines.length < 2) { error.value = 'Nhập ít nhất 2 bài hát, mỗi bài một dòng nhé.'; return }
+  const songs = parsedSongs.value.map(s => s.raw)
+  if (songs.length < 2) { error.value = 'Nhập ít nhất 2 bài hát hợp lệ nhé.'; return }
   loading.value = true
+
+  // Determine initial open rounds
+  let initialOpenRounds = null
+  if (initialOpenOption.value === 'round1') {
+    initialOpenRounds = [0] // Only Round 1 open
+  } else if (initialOpenOption.value === 'round1_2') {
+    initialOpenRounds = [0, 1] // Round 1 & Round 2 open
+  }
+
+  const payload = {
+    name: tournamentName.value.trim() || 'Music Tournament',
+    songs,
+    shuffle: seedingMode.value === 'shuffle',
+    initialOpenRounds
+  }
+
   try {
-    const created = await api('/tournaments', { method: 'POST', body: JSON.stringify({ name: tournamentName.value.trim() || 'Music Tournament', songs: songLines }) })
+    const created = await api('/tournaments', { method: 'POST', body: JSON.stringify(payload) })
     await loadTournaments()
     await openTournament(created.id)
-    flash('Tạo giải thành công! Bắt đầu bình chọn thôi 🎵')
+    flash('Tạo giải thành công! Các nhánh đấu đã được phân bổ 🎵')
   } catch (e) { error.value = e.message }
   finally { loading.value = false }
 }
@@ -123,13 +345,28 @@ async function silentRefresh() {
   } catch (_) {}
 }
 
-async function adminAction(action, roundIndex) {
+// ─── Round Management (Open / Close Voting / Finalize) ───
+async function toggleRoundVoting(roundIndex, currentlyClosed) {
   if (!tournament.value) return
+  const open = currentlyClosed // If closed -> open; if open -> close
   try {
-    tournament.value = await api(`/tournaments/${tournament.value.id}/admin/rounds/${roundIndex}/${action}`, {
+    tournament.value = await api(`/tournaments/${tournament.value.id}/admin/rounds/${roundIndex}/voting?open=${open}`, {
+      method: 'PUT'
+    })
+    await loadTournaments()
+    flash(open ? `Đã MỞ bình chọn cho ${tournament.value.rounds[roundIndex]?.name || 'vòng này'}!` : `Đã ĐÓNG bình chọn cho ${tournament.value.rounds[roundIndex]?.name || 'vòng này'}!`)
+  } catch (e) { error.value = e.message }
+}
+
+async function finalizeRound(roundIndex) {
+  if (!tournament.value) return
+  if (!confirm(`Xác nhận chốt kết quả ${tournament.value.rounds[roundIndex]?.name}? Người nhiều phiếu hơn sẽ vào vòng tiếp theo.`)) return
+  try {
+    tournament.value = await api(`/tournaments/${tournament.value.id}/admin/rounds/${roundIndex}/close`, {
       method: 'POST'
     })
-    await loadTournaments(); flash(action === 'close' ? 'Đã đóng vòng đấu.' : 'Đã mở lại vòng đấu.')
+    await loadTournaments()
+    flash('Đã chốt kết quả và đưa các bài thắng vào vòng tiếp theo! 🏆')
   } catch (e) { error.value = e.message }
 }
 
@@ -140,17 +377,6 @@ async function toggleTournament() {
       method: 'PUT'
     })
     await loadTournaments(); flash(tournament.value.active ? 'Đã mở giải.' : 'Đã đóng giải.')
-  } catch (e) { error.value = e.message }
-}
-
-async function saveEndTime() {
-  if (!tournament.value || !endTime.value) { error.value = 'Chọn thời điểm kết thúc trước nhé.'; return }
-  try {
-    tournament.value = await api(`/tournaments/${tournament.value.id}/admin/end-time`, {
-      method: 'PUT',
-      body: JSON.stringify({ endTime: new Date(endTime.value).toISOString() })
-    })
-    flash('Đã lưu thời gian kết thúc.')
   } catch (e) { error.value = e.message }
 }
 
@@ -238,7 +464,7 @@ onUnmounted(() => {
 
   <div class="shell">
     <aside class="sidebar">
-      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
+      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id">
         <span>{{ item.icon }}</span>{{ item.label }}
       </button>
@@ -248,9 +474,9 @@ onUnmounted(() => {
     <main class="main">
       <div class="page-heading">
         <div>
-          <p class="eyebrow">MUSIC COMMUNITY / VOTE TOGETHER</p>
-          <h2>{{ page==='home'?'Chào mừng đến giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='results'?'Kết quả giải đấu':'Quản trị giải đấu' }}</h2>
-          <p class="muted">Vote một lần mỗi cặp; tự động xử lý kết quả khi kết thúc vòng.</p>
+          <p class="eyebrow">MUSIC TOURNAMENT ENGINE / PRO BRACKETS</p>
+          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='results'?'Kết quả giải đấu':'Quản trị giải đấu' }}</h2>
+          <p class="muted">Tùy biến nhánh đấu, tải danh sách tốc độ cao và mở/đóng từng vòng bình chọn linh hoạt.</p>
         </div>
         <div class="heading-badges">
           <span v-if="tournament && tournament.active && (page==='rounds'||page==='results')" class="live-badge" title="Tự động cập nhật số phiếu theo thời gian thực">
@@ -263,25 +489,142 @@ onUnmounted(() => {
       <div v-if="error" class="alert error"><span>⚠</span>{{ error }}<button @click="error=''">×</button></div>
       <div v-if="notice" class="alert success"><span>✓</span>{{ notice }}<button @click="notice=''">×</button></div>
 
-      <!-- PAGE: HOME -->
+      <!-- PAGE: HOME (CREATION & TOURNAMENTS) -->
       <section v-if="page==='home'" class="dashboard-grid">
-        <div class="panel create-panel">
-          <div class="section-head"><div><span class="mini-icon">✦</span><h3>Tạo giải đấu mới</h3></div><span class="tag">NEW TOURNAMENT</span></div>
-          <p class="muted">Tạo giải riêng với bất kỳ số lượng bài hát nào. Hệ thống tự chia nhánh loại trực tiếp.</p>
-          <label>Tên giải đấu</label><input v-model="tournamentName" placeholder="Ví dụ: Anime Song Championship">
-          <label>Danh sách bài hát <span class="muted small">(mỗi dòng: Tên — Nghệ sĩ | link nhạc)</span></label>
-          <textarea v-model="songText" rows="8" placeholder="Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg&#10;Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00&#10;Blue Bird — Ikimono-gakari&#10;Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ"></textarea>
-          <div class="form-foot"><span class="muted small">{{ songText.split(/\r?\n/).filter(s=>s.trim()).length }} bài đã nhập · Link nhạc là tùy chọn</span><button class="btn primary" @click="createTournament" :disabled="loading">{{ loading?'Đang tạo…':'＋ Tạo giải đấu' }}</button></div>
-          <button class="text-btn" @click="songText='Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg\nGurenge — LiSA | https://youtu.be/CwkzK-F0Y00\nBlue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk\nKaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM\nIdol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ\nUnravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o\nSilhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A\nAgain — YUI | https://youtu.be/2DYYVp4QXew'">Điền thử danh sách anime mẫu ↗</button>
+        <div class="panel create-panel advanced-create">
+          <div class="section-head">
+            <div><span class="mini-icon">✦</span><h3>Tạo giải đấu chuyên nghiệp</h3></div>
+            <div class="create-sub-tabs">
+              <button class="sub-tab-btn" :class="{active:createTab==='input'}" @click="createTab='input'">📝 1. Nhập bài hát</button>
+              <button class="sub-tab-btn" :class="{active:createTab==='preview'}" @click="createTab='preview'" :disabled="parsedSongs.length < 2">
+                ⑂ 2. Xếp nhánh & cặp đấu ({{ parsedSongs.length }})
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 1: FAST INPUT & TOOLBAR -->
+          <div v-if="createTab==='input'">
+            <label>Tên giải đấu</label>
+            <input v-model="tournamentName" placeholder="Ví dụ: Anime Song Championship 2026">
+
+            <!-- Fast Input Toolbar -->
+            <div class="fast-input-bar">
+              <span class="input-bar-label">⚡ Nhập nhanh:</span>
+              <button class="btn mini-btn" @click="triggerFileUpload" title="Tải file text hoặc csv">📁 Tải file (.txt)</button>
+              <input type="file" ref="fileInput" accept=".txt,.csv" @change="handleFileUpload" style="display:none">
+              <div class="preset-group">
+                <span class="preset-label">Mẫu chuẩn:</span>
+                <button class="btn mini-btn" @click="loadPreset(8)">8 bài</button>
+                <button class="btn mini-btn" @click="loadPreset(16)">16 bài</button>
+                <button class="btn mini-btn" @click="loadPreset(32)">32 bài</button>
+              </div>
+              <button v-if="parsedSongs.length > 1" class="btn mini-btn" @click="shuffleSongList" title="Xáo trộn danh sách bài">🔀 Xáo trộn</button>
+            </div>
+
+            <label class="textarea-label">
+              <span>Danh sách bài hát <span class="muted small">(mỗi dòng 1 bài: Tên — Nghệ sĩ | link YouTube/Spotify hoặc copy từ Excel)</span></span>
+              <span v-if="bracketStats" class="bracket-badge" :class="{perfect:bracketStats.byes===0}">
+                {{ bracketStats.count }} bài ➔ Nhánh {{ bracketStats.size }} ({{ bracketStats.byes === 0 ? 'Chuẩn nhánh, 0 vé vào thẳng' : bracketStats.byes + ' vé vào thẳng' }})
+              </span>
+            </label>
+            <textarea v-model="songText" rows="9" placeholder="Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg&#10;Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00&#10;Blue Bird — Ikimono-gakari&#10;Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ"></textarea>
+
+            <div class="setup-row">
+              <div class="setup-col">
+                <label>Phân nhánh vòng 1</label>
+                <select v-model="seedingMode" class="form-select">
+                  <option value="custom">🔢 Theo thứ tự sắp xếp (Bài 1 gặp 2, 3 gặp 4...)</option>
+                  <option value="shuffle">🔀 Xáo trộn ngẫu nhiên tất cả bài hát</option>
+                </select>
+              </div>
+              <div class="setup-col">
+                <label>Mở vòng ban đầu</label>
+                <select v-model="initialOpenOption" class="form-select">
+                  <option value="all">🔓 Mở bình chọn tất cả các vòng</option>
+                  <option value="round1">🔒 Chỉ mở Vòng 1 (Các vòng sau đóng)</option>
+                  <option value="round1_2">🔒 Chỉ mở Vòng 1 & 2 (Các vòng sau đóng)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-foot">
+              <button class="btn soft" @click="createTab='preview'" :disabled="parsedSongs.length < 2">
+                👉 Xem trước & Tùy chỉnh cặp đấu ({{ parsedSongs.length }} bài)
+              </button>
+              <button class="btn primary" @click="createTournament" :disabled="loading || parsedSongs.length < 2">
+                {{ loading ? 'Đang tạo…' : '＋ Tạo giải đấu ngay' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 2: SEEDING & PAIRING ADJUSTMENT -->
+          <div v-else class="preview-pairing-view">
+            <div class="preview-head">
+              <div>
+                <h4>Điều chỉnh thứ tự & Cặp đấu Vòng 1</h4>
+                <p class="muted small">Bạn có thể bấm ⬆ ⬇ để di chuyển bài hát và sắp xếp cặp đấu như ý muốn trước khi tạo giải.</p>
+              </div>
+              <button class="btn soft" @click="shuffleSongList">🔀 Xáo trộn ngẫu nhiên</button>
+            </div>
+
+            <div class="preview-pairings-list">
+              <div v-for="pair in previewPairings" :key="pair.num" class="preview-pair-card" :class="{byeCard:pair.isBye}">
+                <div class="pair-tag">
+                  <span>TRẬN {{ pair.num }}</span>
+                  <span v-if="pair.isBye" class="bye-label">Vé vào thẳng vòng 2</span>
+                </div>
+                
+                <!-- Song A -->
+                <div class="pair-song-row">
+                  <span class="seed-num">#{{ pair.indexA + 1 }}</span>
+                  <div class="pair-song-info">
+                    <b>{{ pair.songA?.title }}</b>
+                    <small>{{ pair.songA?.artist || '—' }}</small>
+                  </div>
+                  <div class="pair-actions">
+                    <button class="icon-btn" :disabled="pair.indexA === 0" @click="moveSongInList(pair.indexA, -1)" title="Di chuyển lên">▲</button>
+                    <button class="icon-btn" :disabled="pair.indexA === parsedSongs.length - 1" @click="moveSongInList(pair.indexA, 1)" title="Di chuyển xuống">▼</button>
+                  </div>
+                </div>
+
+                <div v-if="!pair.isBye" class="pair-vs">VS</div>
+
+                <!-- Song B -->
+                <div v-if="!pair.isBye && pair.songB" class="pair-song-row">
+                  <span class="seed-num">#{{ pair.indexB + 1 }}</span>
+                  <div class="pair-song-info">
+                    <b>{{ pair.songB?.title }}</b>
+                    <small>{{ pair.songB?.artist || '—' }}</small>
+                  </div>
+                  <div class="pair-actions">
+                    <button class="icon-btn" :disabled="pair.indexB === 0" @click="moveSongInList(pair.indexB, -1)" title="Di chuyển lên">▲</button>
+                    <button class="icon-btn" :disabled="pair.indexB === parsedSongs.length - 1" @click="moveSongInList(pair.indexB, 1)" title="Di chuyển xuống">▼</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-foot">
+              <button class="btn soft" @click="createTab='input'">← Quay lại nhập bài</button>
+              <button class="btn primary" @click="createTournament" :disabled="loading">
+                {{ loading ? 'Đang tạo…' : '✓ Hoàn tất & Khởi tạo giải đấu' }}
+              </button>
+            </div>
+          </div>
         </div>
+
         <div class="panel info-panel">
           <div class="section-head"><div><span class="mini-icon violet">▦</span><h3>Tổng quan</h3></div></div>
           <div class="stat"><span>Giải đấu đã tạo</span><b>{{ tournaments.length }}</b></div>
           <div class="stat"><span>Giải đang mở</span><b>{{ tournaments.filter(t=>t.active).length }}</b></div>
           <div class="stat"><span>Thể thức</span><b>Loại trực tiếp</b></div>
-          <div class="stat"><span>Cách tính</span><b>Phiếu vote</b></div>
-          <div class="tip-box"><span>💡</span><p><b>Mẹo nhỏ</b><br>Khi đóng vòng, bài có nhiều phiếu hơn sẽ vào vòng sau. Nếu hòa phiếu, hệ thống tự động bốc thăm để giải không bị kẹt.</p></div>
+          <div class="stat"><span>Tốc độ nạp bài</span><b>Tối ưu hàng loạt</b></div>
+          <div class="tip-box">
+            <span>⚡</span>
+            <p><b>Tính năng mở/đóng vòng</b><br>Bạn có thể mở riêng Vòng 1 và Vòng 2 cho bình chọn trước, các vòng tiếp theo sẽ tạm đóng cho đến khi bạn quyết định mở!</p>
+          </div>
         </div>
+
         <div class="panel tournament-list-panel">
           <div class="section-head"><div><span class="mini-icon">♫</span><h3>Giải đấu gần đây</h3></div><button class="text-btn" @click="loadTournaments">↻ Làm mới</button></div>
           <div v-if="!tournaments.length" class="empty-state"><div class="empty-note">♫</div><b>Chưa có giải đấu nào</b><p>Tạo giải đầu tiên của bạn ở khung bên trái nhé.</p></div>
@@ -305,12 +648,11 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- PAGE: ROUNDS (BRACKET) -->
+      <!-- PAGE: ROUNDS (BRACKET & CONTROLS) -->
       <section v-else-if="page==='rounds'" class="panel bracket-panel">
         <div class="section-head">
           <div><span class="mini-icon violet">♧</span><h3>{{ tournament?.name || 'Sơ đồ vòng đấu' }}</h3></div>
           <div class="head-actions">
-            <!-- Share actions -->
             <button v-if="tournament" class="btn share-action-btn" @click="copyShareLink" title="Sao chép link gửi cho bạn bè">📋 Copy Link</button>
             <button v-if="tournament" class="btn share-action-btn qr-btn" @click="showQrModal=true" title="Mã QR quét trên điện thoại">📱 QR Code</button>
             <button class="btn soft" @click="refreshCurrent" :disabled="!tournament">↻ Làm mới</button>
@@ -330,12 +672,67 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 4. MODE 1: TABS VIEW -->
+          <!-- ROUND CONTROLLER BAR (ĐÓNG/MỞ TỪNG VÒNG) -->
+          <div class="rounds-status-panel">
+            <div class="rounds-status-title">
+              <b>🎛 Điều khiển đóng/mở bình chọn từng vòng:</b>
+              <small class="muted">Bật hoặc tắt vote độc lập cho từng vòng (ví dụ mở vòng 1 & 2, đóng các vòng còn lại).</small>
+            </div>
+            <div class="rounds-chips-row">
+              <div v-for="round in tournament.rounds" :key="round.index" class="round-status-chip" :class="{chipClosed:round.closed, chipCompleted:round.completed}">
+                <div class="chip-info">
+                  <span class="chip-name">{{ round.name }}</span>
+                  <span class="chip-state" :class="{openState:!round.closed, closedState:round.closed}">
+                    {{ round.completed ? '🏆 Đã hoàn thành' : (round.closed ? '🔒 Đã đóng vote' : '🔓 Đang mở vote') }}
+                  </span>
+                </div>
+                <div class="chip-actions">
+                  <button class="chip-toggle-btn" :class="{openAction:round.closed, closeAction:!round.closed}" @click="toggleRoundVoting(round.index, round.closed)" :title="round.closed ? 'Mở bình chọn cho vòng này' : 'Tạm đóng bình chọn cho vòng này'">
+                    {{ round.closed ? '🔓 Mở vote' : '🔒 Đóng vote' }}
+                  </button>
+                  <button v-if="!round.completed" class="chip-finish-btn" @click="finalizeRound(round.index)" title="Chốt kết quả vòng này và đưa người thắng sang vòng sau">
+                    🏆 Chốt kết quả
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODE 1: TABS VIEW -->
           <div v-if="viewMode==='tabs'">
-            <div class="round-tabs"><button v-for="(round,i) in tournament.rounds" :key="round.index" :class="{active:selectedRound===i}" @click="selectedRound=i"><b>{{ round.name }}</b><small>{{ round.matches.filter(m=>m.songA||m.songB).length }} cặp</small></button></div>
+            <div class="round-tabs">
+              <button v-for="(round,i) in tournament.rounds" :key="round.index" :class="{active:selectedRound===i, isClosedTab:round.closed}" @click="selectedRound=i">
+                <b>{{ round.name }}</b>
+                <small>
+                  {{ round.matches.filter(m=>m.songA||m.songB).length }} cặp · {{ round.completed ? '🏆 Xong' : (round.closed ? '🔒 Đóng' : '🔓 Mở') }}
+                </small>
+              </button>
+            </div>
+
+            <div v-if="currentRound" class="current-round-banner" :class="{roundClosedBanner:currentRound.closed}">
+              <div class="banner-text">
+                <span v-if="currentRound.closed" class="banner-tag closedTag">🔒 VÒNG NÀY ĐANG ĐÓNG BÌNH CHỌN</span>
+                <span v-else class="banner-tag openTag">🔓 VÒNG NÀY ĐANG MỞ BÌNH CHỌN</span>
+                <span>{{ currentRound.name }} · {{ currentRound.matches.filter(m=>m.songA||m.songB).length }} cặp đấu</span>
+              </div>
+              <div class="banner-actions">
+                <button class="btn mini-btn" :class="{primary:currentRound.closed, soft:!currentRound.closed}" @click="toggleRoundVoting(currentRound.index, currentRound.closed)">
+                  {{ currentRound.closed ? '🔓 Mở bình chọn vòng này' : '🔒 Đóng bình chọn vòng này' }}
+                </button>
+                <button v-if="!currentRound.completed" class="btn mini-btn primary" @click="finalizeRound(currentRound.index)">
+                  🏆 Chốt kết quả vòng này
+                </button>
+              </div>
+            </div>
+
             <div v-if="currentRound" class="match-grid">
-              <article v-for="match in currentRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="match-card">
-                <div class="match-top"><span>TRẬN {{ match.position+1 }}</span><span v-if="match.winner" class="match-state won">✓ Đã có kết quả</span><span v-else-if="match.closed" class="match-state">Đã đóng</span><span v-else class="match-state live">● Đang vote</span></div>
+              <article v-for="match in currentRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="match-card" :class="{matchLocked:match.closed}">
+                <div class="match-top">
+                  <span>TRẬN {{ match.position+1 }}</span>
+                  <span v-if="match.winner" class="match-state won">✓ Đã có kết quả</span>
+                  <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
+                  <span v-else class="match-state live">● Đang vote</span>
+                </div>
                 <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                   <template v-if="song">
                     <span class="song-cover">♫</span>
@@ -347,7 +744,9 @@ onUnmounted(() => {
                     <div class="vote-side">
                       <small>{{ match['votes'+(side===0?'A':'B')] }} vote</small>
                       <button v-if="song.link" class="btn song-link-btn" title="Nghe thử trực tiếp" @click="playSong(song)">▶</button>
-                      <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">{{ match.winner?.id===song.id?'✓ Thắng':'Vote' }}</button>
+                      <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
+                        {{ match.winner?.id===song.id ? '✓ Thắng' : (match.closed ? 'Đã đóng' : 'Vote') }}
+                      </button>
                     </div>
                   </template>
                   <div v-else class="tbd">Đang chờ kết quả vòng trước…</div>
@@ -358,20 +757,23 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 4. MODE 2: BRACKET TREE VIEW -->
+          <!-- MODE 2: BRACKET TREE VIEW -->
           <div v-else class="bracket-tree-wrapper">
             <div class="bracket-tree-scroll">
               <div v-for="round in tournament.rounds" :key="round.index" class="tree-round-column">
-                <div class="tree-round-header">
+                <div class="tree-round-header" :class="{treeHeaderClosed:round.closed}">
                   <h4>{{ round.name }}</h4>
-                  <small>{{ round.matches.filter(m=>m.songA||m.songB).length }} cặp đấu</small>
+                  <small>{{ round.completed ? '🏆 Hoàn thành' : (round.closed ? '🔒 Đã đóng' : '🔓 Đang mở vote') }}</small>
+                  <button class="tree-toggle-round-btn" @click="toggleRoundVoting(round.index, round.closed)">
+                    {{ round.closed ? '🔓 Mở' : '🔒 Đóng' }}
+                  </button>
                 </div>
                 <div class="tree-round-matches">
-                  <div v-for="match in round.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="tree-match-card">
+                  <div v-for="match in round.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
                     <div class="tree-match-header">
                       <span>#{{ match.position + 1 }}</span>
                       <span v-if="match.winner" class="mini-status won">✓ Xong</span>
-                      <span v-else-if="match.closed" class="mini-status closed">Đóng</span>
+                      <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                       <span v-else class="mini-status live">Vote</span>
                     </div>
                     <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
@@ -397,8 +799,14 @@ onUnmounted(() => {
           </div>
 
           <div v-if="champion" class="champion-banner"><div class="champion-cup">🏆</div><div><small>CHAMPION</small><h3>{{ champion.title }}</h3><p>{{ champion.artist }} · Quán quân của giải đấu!</p></div></div>
-          <div v-if="showAdmin" class="admin-tools"><h3>🔐 Công cụ quản trị</h3><div class="admin-actions"><button class="btn soft" @click="adminAction('open',selectedRound)">Mở vòng này</button><button class="btn danger" @click="adminAction('close',selectedRound)">Đóng vòng này (chốt người thắng)</button><button class="btn soft" @click="toggleTournament">{{ tournament.active?'Đóng giải':'Mở giải' }}</button></div></div>
-          <button class="admin-toggle" @click="showAdmin=!showAdmin">{{ showAdmin?'Ẩn công cụ quản trị':'⚙ Quản trị vòng đấu' }}</button>
+          <div v-if="showAdmin" class="admin-tools">
+            <h3>🔐 Quản trị toàn giải</h3>
+            <div class="admin-actions">
+              <button class="btn soft" @click="toggleTournament">{{ tournament.active ? 'Đóng toàn bộ giải' : 'Mở lại giải' }}</button>
+              <button class="btn danger" @click="finalizeRound(selectedRound)">Chốt kết quả vòng đang chọn</button>
+            </div>
+          </div>
+          <button class="admin-toggle" @click="showAdmin=!showAdmin">{{ showAdmin ? 'Ẩn công cụ quản trị' : '⚙ Cài đặt đóng/mở toàn giải' }}</button>
         </template>
       </section>
 
@@ -414,15 +822,15 @@ onUnmounted(() => {
 
       <!-- PAGE: SETTINGS -->
       <section v-else class="panel settings-panel">
-        <div class="section-head"><div><span class="mini-icon violet">⚙</span><h3>Cài đặt & Giới thiệu</h3></div></div>
-        <p class="muted">Hệ thống bình chọn giải đấu âm nhạc trực tuyến tự động chia nhánh loại trực tiếp.</p>
-        <div class="tip-box"><span>🚀</span><p><b>Chia sẻ giải đấu</b><br>Mỗi giải đấu có đường link riêng và mã QR. Người dùng có thể quét QR hoặc mở link để bình chọn trực tiếp trên điện thoại.</p></div>
-        <div class="tip-box"><span>🛡</span><p><b>Quy tắc bình chọn</b><br>Mỗi thiết bị có một mã voter riêng và chỉ được vote 1 lần cho mỗi cặp đấu.</p></div>
+        <div class="section-head"><div><span class="mini-icon violet">⚙</span><h3>Cài đặt & Hướng dẫn</h3></div></div>
+        <p class="muted">Hệ thống bình chọn giải đấu âm nhạc chuyên nghiệp.</p>
+        <div class="tip-box"><span>⚡</span><p><b>Nhập số lượng lớn</b><br>Dùng nút "Tải file (.txt)" để nạp 32, 64 hoặc 128 bài hát trong 1 giây. Hỗ trợ dán trực tiếp từ file Excel/Google Sheets.</p></div>
+        <div class="tip-box"><span>🎛</span><p><b>Đóng/Mở từng vòng</b><br>Trong sơ đồ vòng đấu, bạn có thể bấm "Đóng vote" hoặc "Mở vote" cho từng vòng độc lập.</p></div>
       </section>
     </main>
   </div>
 
-  <!-- 1. POPUP INLINE MUSIC PLAYER -->
+  <!-- POPUP INLINE MUSIC PLAYER -->
   <div v-if="activePlayerSong" class="modal-overlay" @click.self="closePlayer">
     <div class="player-modal">
       <div class="player-modal-header">
@@ -451,7 +859,7 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <!-- 2. POPUP QR CODE SHARE -->
+  <!-- POPUP QR CODE SHARE -->
   <div v-if="showQrModal && tournament" class="modal-overlay" @click.self="showQrModal=false">
     <div class="qr-modal">
       <div class="player-modal-header">
@@ -472,5 +880,5 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <footer class="footer">♫ Made for music fans <span>·</span> Music Tournament 2026</footer>
+  <footer class="footer">♫ Made for music fans <span>·</span> Music Tournament Pro 2026</footer>
 </template>

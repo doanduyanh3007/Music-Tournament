@@ -31,6 +31,8 @@ public class TournamentController {
     public Map<String,Object> close(@PathVariable Long id,@PathVariable int roundIndex){return service.closeRound(id,roundIndex);}
     @PostMapping("/tournaments/{id}/admin/rounds/{roundIndex}/open")
     public Map<String,Object> open(@PathVariable Long id,@PathVariable int roundIndex){return service.openRound(id,roundIndex);}
+    @PutMapping("/tournaments/{id}/admin/rounds/{roundIndex}/voting")
+    public Map<String,Object> voting(@PathVariable Long id,@PathVariable int roundIndex,@RequestParam boolean open){return service.setRoundVoting(id,roundIndex,open);}
     @PutMapping("/tournaments/{id}/admin/end-time")
     public Map<String,Object> endTime(@PathVariable Long id,@RequestBody EndTimeRequest req){return service.setEndTime(id,req.endTime());}
     @PutMapping("/tournaments/{id}/admin/status")
