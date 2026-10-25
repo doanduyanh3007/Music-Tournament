@@ -140,7 +140,9 @@ public class TournamentService {
         for(TournamentMatch m:round) {
             if(m.getWinner()==null&&m.getSongA()!=null&&m.getSongB()!=null) {
                 long a=votes.countByMatchIdAndSongId(m.getId(),m.getSongA().getId()), b=votes.countByMatchIdAndSongId(m.getId(),m.getSongB().getId());
-                if(a>b)m.setWinner(m.getSongA()); else if(b>a)m.setWinner(m.getSongB());
+                if(a>b) m.setWinner(m.getSongA());
+                else if(b>a) m.setWinner(m.getSongB());
+                else m.setWinner(Math.random() < 0.5 ? m.getSongA() : m.getSongB());
             }
         }
         advance(tournamentId);
