@@ -1,0 +1,80 @@
+# Music Tournament
+
+Website bình chọn bài hát theo thể thức loại trực tiếp.
+
+## Công nghệ
+- Frontend: Vue 3 + Vite
+- Backend: Java 17 + Spring Boot 3.5.7 + Spring Data JPA
+- Database mặc định: H2 file (dữ liệu được lưu trong `backend/data`)
+- Có cấu hình tùy chọn SQL Server
+
+## Chức năng
+- Tạo giải đấu với số bài hát tùy chỉnh (mỗi dòng: `Tên bài — Nghệ sĩ`)
+- Xem danh sách giải và sơ đồ các vòng
+- Bình chọn một lần cho mỗi cặp trên mỗi trình duyệt (định danh voter lưu trong localStorage)
+- Tự đếm phiếu; quản trị viên đóng vòng để chốt người thắng theo tổng phiếu
+- Tự chuyển người thắng sang vòng tiếp theo; xử lý số bài không phải lũy thừa của 2
+- Quản trị viên có thể mở/đóng vòng và đặt thời gian kết thúc
+- Xem kết quả, quán quân
+- API backend lưu dữ liệu trong database
+
+> Lưu ý chống gian lận: định danh voter phía trình duyệt phù hợp cho bản demo/nhóm nhỏ, không thể đảm bảo một người chỉ vote một lần nếu họ xóa dữ liệu trình duyệt hoặc dùng thiết bị khác. Nếu cần vận hành công khai, nên thêm đăng nhập hoặc mã xác thực.
+
+## 1. Chạy backend bằng IntelliJ IDEA
+1. Mở thư mục `backend` bằng IntelliJ IDEA.
+2. Cài JDK 17 trở lên.
+3. Chờ Maven tải dependency.
+4. Chạy `src/main/java/com/example/musictournament/MusicTournamentApplication.java`.
+5. Backend mặc định chạy ở `http://localhost:8080`.
+6. API kiểm tra: `http://localhost:8080/api/health`
+7. H2 console: `http://localhost:8080/h2-console`
+   - JDBC URL: `jdbc:h2:file:./data/musicdb`
+   - User: `sa`
+   - Password: để trống
+
+Nếu chạy từ IntelliJ, thư mục data thường được tạo trong working directory của cấu hình chạy.
+
+## 2. Chạy frontend bằng VS Code
+1. Mở thư mục `frontend` bằng VS Code.
+2. Cài Node.js LTS.
+3. Mở Terminal tại thư mục `frontend` rồi chạy:
+   ```bash
+   npm install
+   npm run dev
+   ```
+4. Mở địa chỉ Vite in trong terminal, thường là `http://localhost:5173`.
+
+Frontend đã cấu hình proxy `/api` tới backend `http://localhost:8080`.
+
+## 3. Dùng thử
+- Nhấn **Tạo giải đấu**, nhập tên giải và mỗi bài hát trên một dòng.
+- Cú pháp khuyên dùng: `Tên bài — Nghệ sĩ`. Nếu không có nghệ sĩ, chỉ cần nhập tên bài.
+- Mở giải đấu để bình chọn. Mỗi trình duyệt có một voter ID riêng.
+- Quản trị viên đóng vòng để chốt người thắng theo tổng phiếu; sau đó người thắng tự chuyển sang vòng tiếp theo.
+- Quản trị viên có thể vào khu vực **Quản trị**, dùng mã mặc định `admin-demo-2026` để mở/đóng vòng. Đổi mã trong `backend/src/main/resources/application.properties` trước khi chia sẻ.
+
+## 4. SQL Server (tùy chọn)
+Mặc định dùng H2 để bạn chạy ngay mà không cần cài database. Để dùng SQL Server:
+1. Tạo database, ví dụ `MusicTournamentDB`.
+2. Trong `backend/pom.xml`, bỏ comment dependency `mssql-jdbc` nếu đang comment.
+3. Sửa `backend/src/main/resources/application-sqlserver.properties` theo máy của bạn.
+4. Chạy backend với profile `sqlserver`:
+   - IntelliJ VM options: `-Dspring.profiles.active=sqlserver`
+   - hoặc environment variable `SPRING_PROFILES_ACTIVE=sqlserver`
+5. Đặt biến môi trường `DB_USERNAME` và `DB_PASSWORD`.
+
+Không dùng `ddl-auto=create` trên dữ liệu thật. Bản demo đang dùng `update` để tạo bảng tự động.
+
+## API chính
+- `GET /api/health`
+- `GET /api/tournaments`
+- `POST /api/tournaments`
+- `GET /api/tournaments/{id}`
+- `POST /api/tournaments/{id}/matches/{matchId}/vote`
+- `POST /api/tournaments/{id}/admin/rounds/{roundIndex}/close`
+- `POST /api/tournaments/{id}/admin/rounds/{roundIndex}/open`
+- `PUT /api/tournaments/{id}/admin/end-time`
+- `GET /api/tournaments/{id}/results`
+
+## Ghi chú
+Đây là nền tảng chạy local để phát triển tiếp. Muốn nhiều người truy cập từ Internet, bạn cần deploy frontend/backend và database lên hosting, đồng thời thay mã quản trị demo bằng xác thực an toàn.
