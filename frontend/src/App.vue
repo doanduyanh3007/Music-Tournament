@@ -679,7 +679,7 @@ onUnmounted(() => {
               <small class="muted">Bật hoặc tắt vote độc lập cho từng vòng (ví dụ mở vòng 1 & 2, đóng các vòng còn lại).</small>
             </div>
             <div class="rounds-chips-row">
-              <div v-for="round in tournament.rounds" :key="round.index" class="round-status-chip" :class="{chipClosed:round.closed, chipCompleted:round.completed}">
+              <div v-for="round in tournament.rounds.filter(r => r.matches.some(m => m.songA || m.songB))" :key="round.index" class="round-status-chip" :class="{chipClosed:round.closed, chipCompleted:round.completed}">
                 <div class="chip-info">
                   <span class="chip-name">{{ round.name }}</span>
                   <span class="chip-state" :class="{openState:!round.closed, closedState:round.closed}">
@@ -690,9 +690,6 @@ onUnmounted(() => {
                   <button class="chip-toggle-btn" :class="{openAction:round.closed, closeAction:!round.closed}" @click="toggleRoundVoting(round.index, round.closed)" :title="round.closed ? 'Mở bình chọn cho vòng này' : 'Tạm đóng bình chọn cho vòng này'">
                     {{ round.closed ? '🔓 Mở vote' : '🔒 Đóng vote' }}
                   </button>
-                  <button v-if="!round.completed" class="chip-finish-btn" @click="finalizeRound(round.index)" title="Chốt kết quả vòng này và đưa người thắng sang vòng sau">
-                    🏆 Chốt kết quả
-                  </button>
                 </div>
               </div>
             </div>
@@ -701,7 +698,7 @@ onUnmounted(() => {
           <!-- MODE 1: TABS VIEW -->
           <div v-if="viewMode==='tabs'">
             <div class="round-tabs">
-              <button v-for="(round,i) in tournament.rounds" :key="round.index" :class="{active:selectedRound===i, isClosedTab:round.closed}" @click="selectedRound=i">
+              <button v-for="(round,i) in tournament.rounds" :key="round.index" v-show="round.matches.some(m=>m.songA||m.songB)" :class="{active:selectedRound===i, isClosedTab:round.closed}" @click="selectedRound=i">
                 <b>{{ round.name }}</b>
                 <small>
                   {{ round.matches.filter(m=>m.songA||m.songB).length }} cặp · {{ round.completed ? '🏆 Xong' : (round.closed ? '🔒 Đóng' : '🔓 Mở') }}
@@ -718,9 +715,6 @@ onUnmounted(() => {
               <div class="banner-actions">
                 <button class="btn mini-btn" :class="{primary:currentRound.closed, soft:!currentRound.closed}" @click="toggleRoundVoting(currentRound.index, currentRound.closed)">
                   {{ currentRound.closed ? '🔓 Mở bình chọn vòng này' : '🔒 Đóng bình chọn vòng này' }}
-                </button>
-                <button v-if="!currentRound.completed" class="btn mini-btn primary" @click="finalizeRound(currentRound.index)">
-                  🏆 Chốt kết quả vòng này
                 </button>
               </div>
             </div>
@@ -760,7 +754,7 @@ onUnmounted(() => {
           <!-- MODE 2: BRACKET TREE VIEW -->
           <div v-else class="bracket-tree-wrapper">
             <div class="bracket-tree-scroll">
-              <div v-for="round in tournament.rounds" :key="round.index" class="tree-round-column">
+              <div v-for="round in tournament.rounds.filter(r => r.matches.some(m => m.songA || m.songB))" :key="round.index" class="tree-round-column">
                 <div class="tree-round-header" :class="{treeHeaderClosed:round.closed}">
                   <h4>{{ round.name }}</h4>
                   <small>{{ round.completed ? '🏆 Hoàn thành' : (round.closed ? '🔒 Đã đóng' : '🔓 Đang mở vote') }}</small>
@@ -803,7 +797,6 @@ onUnmounted(() => {
             <h3>🔐 Quản trị toàn giải</h3>
             <div class="admin-actions">
               <button class="btn soft" @click="toggleTournament">{{ tournament.active ? 'Đóng toàn bộ giải' : 'Mở lại giải' }}</button>
-              <button class="btn danger" @click="finalizeRound(selectedRound)">Chốt kết quả vòng đang chọn</button>
             </div>
           </div>
           <button class="admin-toggle" @click="showAdmin=!showAdmin">{{ showAdmin ? 'Ẩn công cụ quản trị' : '⚙ Cài đặt đóng/mở toàn giải' }}</button>
