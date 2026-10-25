@@ -404,6 +404,23 @@ function getYoutubeEmbedUrl(url) {
   return match && match[1] ? `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1` : null
 }
 
+function getSpotifyEmbedUrl(url) {
+  if (!url) return null
+  // Match: open.spotify.com/track/ID or /album/ID or /playlist/ID or /episode/ID
+  // Also supports spotify:track:ID uri format
+  const trackMatch = url.match(/(?:open\.spotify\.com\/(track|album|playlist|episode)\/|spotify:(track|album|playlist|episode):)([a-zA-Z0-9]+)/i)
+  if (trackMatch) {
+    const type = trackMatch[1] || trackMatch[2]
+    const id = trackMatch[3]
+    return `https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0`
+  }
+  return null
+}
+
+function isSpotifyLink(url) {
+  return !!url && (url.includes('spotify.com') || url.startsWith('spotify:'))
+}
+
 function playSong(song) {
   if (!song || !song.link) return
   activePlayerSong.value = song
@@ -643,7 +660,9 @@ onUnmounted(() => {
             <span class="song-index">{{ String(i+1).padStart(2,'0') }}</span>
             <span class="album small-album">♫</span>
             <div><b>{{ song.title }}</b><small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small></div>
-            <button v-if="song.link" @click="playSong(song)" class="btn song-link-btn" title="Nghe thử bài này">▶ Nghe thử</button>
+            <button v-if="song.link" @click="playSong(song)" class="btn song-link-btn" :class="{spotifyBtn: isSpotifyLink(song.link)}" :title="isSpotifyLink(song.link) ? 'Nghe thử trên Spotify' : 'Nghe thử bài này'">
+              {{ isSpotifyLink(song.link) ? '🟢 Nghe thử' : '▶ Nghe thử' }}
+            </button>
           </div>
         </div>
       </section>
@@ -740,7 +759,9 @@ onUnmounted(() => {
                     </div>
                     <div class="vote-side">
                       <small>{{ match['votes'+(side===0?'A':'B')] }} vote</small>
-                      <button v-if="song.link" class="btn song-link-btn" title="Nghe thử trực tiếp" @click="playSong(song)">▶</button>
+                      <button v-if="song.link" class="btn song-link-btn" :class="{spotifyBtn: isSpotifyLink(song.link)}" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'" @click="playSong(song)">
+                        {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
+                      </button>
                       <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
                         {{ match.winner?.id===song.id ? '✓ Thắng' : (match.closed ? 'Đã đóng' : 'Vote') }}
                       </button>
@@ -780,7 +801,9 @@ onUnmounted(() => {
                           <small :title="song.artist">{{ song.artist || '—' }}</small>
                         </div>
                         <div class="tree-song-actions">
-                          <button v-if="song.link" class="tree-play-btn" @click="playSong(song)" title="Nghe thử">▶</button>
+                          <button v-if="song.link" class="tree-play-btn" :class="{spotifyTreeBtn: isSpotifyLink(song.link)}" @click="playSong(song)" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                            {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
+                          </button>
                           <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
                           <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
                             {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
@@ -828,25 +851,43 @@ onUnmounted(() => {
 
   <!-- POPUP INLINE MUSIC PLAYER -->
   <div v-if="activePlayerSong" class="modal-overlay" @click.self="closePlayer">
-    <div class="player-modal">
+    <div class="player-modal" :class="{spotifyModal: isSpotifyLink(activePlayerSong.link)}">
       <div class="player-modal-header">
         <div class="player-modal-info">
-          <span class="player-symbol">♫</span>
+          <span class="player-symbol" :class="{spotifySymbol: isSpotifyLink(activePlayerSong.link)}">
+            {{ isSpotifyLink(activePlayerSong.link) ? '🟢' : '♫' }}
+          </span>
           <div>
             <h4>{{ activePlayerSong.title }}</h4>
             <p>{{ activePlayerSong.artist || 'Chưa có thông tin nghệ sĩ' }}</p>
           </div>
         </div>
-        <button class="modal-close-btn" @click="closePlayer">✕</button>
+        <div class="player-modal-right">
+          <a v-if="activePlayerSong.link" :href="activePlayerSong.link" target="_blank" rel="noopener noreferrer" class="btn open-external-link-btn" title="Mở trực tiếp trên Spotify / YouTube">
+            {{ isSpotifyLink(activePlayerSong.link) ? 'Mở Spotify ↗' : 'Mở tab mới ↗' }}
+          </a>
+          <button class="modal-close-btn" @click="closePlayer">✕</button>
+        </div>
       </div>
-      <div class="player-modal-body">
-        <iframe v-if="getYoutubeEmbedUrl(activePlayerSong.link)"
+      <div class="player-modal-body" :class="{spotifyBody: isSpotifyLink(activePlayerSong.link)}">
+        <!-- SPOTIFY EMBED -->
+        <iframe v-if="getSpotifyEmbedUrl(activePlayerSong.link)"
+          :src="getSpotifyEmbedUrl(activePlayerSong.link)"
+          class="spotify-iframe"
+          frameborder="0"
+          allowfullscreen=""
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy">
+        </iframe>
+        <!-- YOUTUBE EMBED -->
+        <iframe v-else-if="getYoutubeEmbedUrl(activePlayerSong.link)"
           :src="getYoutubeEmbedUrl(activePlayerSong.link)"
           class="youtube-iframe"
           frameborder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowfullscreen>
         </iframe>
+        <!-- FALLBACK -->
         <div v-else class="fallback-player">
           <p>Bài hát này sử dụng liên kết ngoài:</p>
           <a :href="activePlayerSong.link" target="_blank" class="btn primary">Mở bài hát trong tab mới ↗</a>
