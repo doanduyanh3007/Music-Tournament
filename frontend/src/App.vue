@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { parseSongs, uniqueSongs, formatSong } from './songInput.js'
+import ChampionStage from './ChampionStage.vue'
 
 const API = '/api'
 const voterKey = getVoterKey()
@@ -138,6 +139,7 @@ const fileInput = ref(null)
 
 // 1. Inline Music Player state
 const activePlayerSong = ref(null)
+const championStage = ref(null)
 
 // 2. Share & QR state
 const showQrModal = ref(false)
@@ -901,9 +903,6 @@ const activePreviewUrl = ref('')
 let previewAudio = null
 const quickTags = ['🔥 Anime Hits', '🎵 YOASOBI', '⭐ V-Pop Top', '🎧 K-Pop', '🎸 J-Rock']
 
-// Celebration state
-const isCelebrationActive = ref(false)
-const isVinylSpinning = ref(true)
 
 async function executeSearch() {
   const q = searchQuery.value.trim()
@@ -976,32 +975,12 @@ function toggleAudioPreview(url) {
   }
 }
 
-function triggerCelebration() {
-  isCelebrationActive.value = true
-  flash('🎉 Tung pháo hoa chúc mừng Quán quân vô địch! 🏆')
-  setTimeout(() => { isCelebrationActive.value = false }, 5000)
-}
-
 function copyChampionTitle() {
   if (!champion.value) return
   const text = `🏆 QUÁN QUÂN: ${champion.value.title} — ${champion.value.artist} (${tournament.value?.name || 'Music Tournament'})`
   navigator.clipboard?.writeText?.(text).then(() => {
     flash('Đã sao chép vinh danh Quán quân vào clipboard! 📋')
   })
-}
-
-function confettiStyle(n) {
-  const left = (n * 4.1) % 100
-  const delay = ((n * 0.23) % 2.5).toFixed(2)
-  const duration = (2.2 + ((n * 0.31) % 2)).toFixed(2)
-  const colors = ['#f59e0b', '#ec4899', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#fbbf24']
-  const color = colors[n % colors.length]
-  return {
-    left: `${left}%`,
-    animationDelay: `${delay}s`,
-    animationDuration: `${duration}s`,
-    backgroundColor: color
-  }
 }
 
 // ─── Create Tournament with Seeding & Round Config ───
@@ -1176,7 +1155,14 @@ function isSpotifyLink(url) {
 
 function playSong(song) {
   if (!song || !song.link) return
+  championStage.value?.stop()
   activePlayerSong.value = song
+}
+
+function stopOtherPlayers() {
+  activePlayerSong.value = null
+  if (previewAudio) { previewAudio.pause(); previewAudio = null }
+  activePreviewUrl.value = ''
 }
 
 function closePlayer() {
@@ -1200,6 +1186,11 @@ async function copyShareLink() {
 
 const currentRound = computed(() => tournament.value?.rounds?.[selectedRound.value] || null)
 const champion = computed(() => tournament.value?.champion || null)
+const isFinalRound = computed(() => {
+  const rounds = tournament.value?.rounds || []
+  const round = currentRound.value
+  return Boolean(round && round.index === rounds[rounds.length-1]?.index && round.matches.length === 1 && round.matches[0].songA && round.matches[0].songB)
+})
 const completedMatches = computed(() => (tournament.value?.rounds || []).flatMap(r => r.matches).filter(m => m.winner && m.songA && m.songB).length)
 const totalMatches = computed(() => (tournament.value?.rounds || []).flatMap(r => r.matches).filter(m => m.songA && m.songB).length)
 const progress = computed(() => totalMatches.value ? Math.round(completedMatches.value / totalMatches.value * 100) : 0)
@@ -1419,7 +1410,7 @@ onUnmounted(() => {
 
 <template>
   <header class="topbar">
-    <button class="btn sidebar-toggle-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu để tiết kiệm diện tích'">
+    <button class="btn sidebar-toggle-btn" aria-controls="main-sidebar" :aria-expanded="!isSidebarCollapsed" :aria-label="isSidebarCollapsed ? 'Mở sidebar' : 'Thu gọn sidebar'" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu để tiết kiệm diện tích'">
       {{ isSidebarCollapsed ? '☰' : '◀' }}
     </button>
     <div class="brand-avatar-box">
@@ -1449,7 +1440,7 @@ onUnmounted(() => {
   </header>
 
   <div class="shell" :class="{sidebarCollapsed: isSidebarCollapsed}">
-    <aside class="sidebar" :class="{collapsed: isSidebarCollapsed}">
+    <aside id="main-sidebar" class="sidebar" :class="{collapsed: isSidebarCollapsed}">
       <div class="sidebar-header-row">
         <div v-show="!isSidebarCollapsed" class="sidebar-brand-preview">
           <img src="/logo.png" alt="Logo" class="sidebar-logo-img">
@@ -1458,9 +1449,7 @@ onUnmounted(() => {
             <small>Championship 2026</small>
           </div>
         </div>
-        <button class="aside-fold-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng menu' : 'Đóng menu'">
-          {{ isSidebarCollapsed ? '▶ Mở' : '◀ Thu gọn' }}
-        </button>
+
       </div>
       <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
@@ -1910,10 +1899,15 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-if="currentRound" class="match-grid">
-              <article v-for="match in paginatedMatches" :key="match.id" class="match-card" :class="{matchLocked:match.closed}">
+            <div v-if="isFinalRound" class="finale-intro">
+              <span class="finale-eyebrow">✦ THE GRAND FINAL ✦</span>
+              <h3>Chung kết</h3>
+              <p>Hai bài hát. Một ngôi vô địch. {{ champion ? 'Quán quân đã được gọi tên.' : 'Lá phiếu của bạn làm nên khoảnh khắc này.' }}</p>
+            </div>
+            <div v-if="currentRound" class="match-grid" :class="{'finale-match-grid':isFinalRound}">
+              <article v-for="match in paginatedMatches" :key="match.id" class="match-card" :class="{matchLocked:match.closed, 'finale-match-card':isFinalRound}">
                 <div class="match-top">
-                  <span>TRẬN {{ match.position+1 }}</span><button class="match-detail-btn" @click="openVoteDetails(match)">Xem chi tiết</button>
+                  <span>{{ isFinalRound ? '🏆 TRẬN TRANH NGÔI VÔ ĐỊCH' : 'TRẬN ' + (match.position+1) }}</span><button class="match-detail-btn" @click="openVoteDetails(match)">Xem chi tiết</button>
                   <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Vé đặc cách</span>
                   <span v-if="match.winner" class="match-state won">✓ Đã có kết quả</span>
                   <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
@@ -2135,50 +2129,7 @@ onUnmounted(() => {
           </div>
 
           <!-- GRAND CHAMPION CELEBRATION STAGE -->
-          <div v-if="champion" class="grand-champion-stage">
-            <div class="champion-glow-aura"></div>
-            <div v-if="isCelebrationActive" class="confetti-container">
-              <span v-for="n in 28" :key="n" class="confetti-dot" :style="confettiStyle(n)"></span>
-            </div>
-
-            <div class="champion-stage-content">
-              <div class="champion-stage-visual">
-                <div class="trophy-laurel">👑</div>
-                <div class="stage-trophy-gold">🏆</div>
-                <div class="vinyl-record" :class="{spinning: isVinylSpinning}">
-                  <div class="vinyl-center-art">
-                    <img src="/logo.png" alt="Logo" class="vinyl-mini-logo">
-                  </div>
-                </div>
-              </div>
-
-              <div class="champion-stage-text">
-                <div class="champion-royal-badge">
-                  <span>★ QUÁN QUÂN VÔ ĐỊCH TOÀN GIẢI · GRAND CHAMPION ★</span>
-                </div>
-                <h2 class="champion-epic-title">{{ champion.title }}</h2>
-                <div class="champion-epic-artist">
-                  <b>{{ champion.artist || 'Nghệ sĩ xuất sắc' }}</b>
-                  <span class="animated-soundbars" title="Âm thanh chiến thắng">
-                    <i></i><i></i><i></i><i></i><i></i>
-                  </span>
-                </div>
-                <p class="champion-quote">“Bài hát chạm đến trái tim của đông đảo khán giả và xuất sắc đăng quang ngôi vị quán quân!”</p>
-
-                <div class="champion-stage-actions">
-                  <button v-if="champion.link" class="btn champion-listen-btn" :class="{spotifyChampBtn: isSpotifyLink(champion.link)}" @click="playSong(champion)">
-                    {{ isSpotifyLink(champion.link) ? '🟢 Nghe trên Spotify' : '▶ Nghe bài hát Quán Quân' }}
-                  </button>
-                  <button class="btn champion-confetti-btn" @click="triggerCelebration">
-                    🎉 Tung pháo hoa ăn mừng
-                  </button>
-                  <button class="btn champion-share-btn" @click="copyChampionTitle">
-                    📋 Sao chép danh hiệu
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ChampionStage v-if="champion" :key="tournament.id + ':' + champion.id" ref="championStage" :song="champion" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
           <div v-if="showAdmin" class="admin-tools">
             <h3>🔐 Quản trị toàn giải</h3>
             <div class="admin-actions">
@@ -2457,50 +2408,7 @@ onUnmounted(() => {
             <span>{{ resultMatches.length }} trận</span>
           </div>
           <!-- GRAND CHAMPION CELEBRATION STAGE -->
-          <div v-if="champion" class="grand-champion-stage">
-            <div class="champion-glow-aura"></div>
-            <div v-if="isCelebrationActive" class="confetti-container">
-              <span v-for="n in 28" :key="n" class="confetti-dot" :style="confettiStyle(n)"></span>
-            </div>
-
-            <div class="champion-stage-content">
-              <div class="champion-stage-visual">
-                <div class="trophy-laurel">👑</div>
-                <div class="stage-trophy-gold">🏆</div>
-                <div class="vinyl-record" :class="{spinning: isVinylSpinning}">
-                  <div class="vinyl-center-art">
-                    <img src="/logo.png" alt="Logo" class="vinyl-mini-logo">
-                  </div>
-                </div>
-              </div>
-
-              <div class="champion-stage-text">
-                <div class="champion-royal-badge">
-                  <span>★ QUÁN QUÂN VÔ ĐỊCH TOÀN GIẢI · GRAND CHAMPION ★</span>
-                </div>
-                <h2 class="champion-epic-title">{{ champion.title }}</h2>
-                <div class="champion-epic-artist">
-                  <b>{{ champion.artist || 'Nghệ sĩ xuất sắc' }}</b>
-                  <span class="animated-soundbars" title="Âm thanh chiến thắng">
-                    <i></i><i></i><i></i><i></i><i></i>
-                  </span>
-                </div>
-                <p class="champion-quote">“Bài hát chạm đến trái tim của đông đảo khán giả và xuất sắc đăng quang ngôi vị quán quân!”</p>
-
-                <div class="champion-stage-actions">
-                  <button v-if="champion.link" class="btn champion-listen-btn" :class="{spotifyChampBtn: isSpotifyLink(champion.link)}" @click="playSong(champion)">
-                    {{ isSpotifyLink(champion.link) ? '🟢 Nghe trên Spotify' : '▶ Nghe bài hát Quán Quân' }}
-                  </button>
-                  <button class="btn champion-confetti-btn" @click="triggerCelebration">
-                    🎉 Tung pháo hoa ăn mừng
-                  </button>
-                  <button class="btn champion-share-btn" @click="copyChampionTitle">
-                    📋 Sao chép danh hiệu
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ChampionStage v-if="champion" :key="tournament.id + ':' + champion.id" ref="championStage" :song="champion" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
           <p v-if="!visibleResults.length" class="muted">Không có trận đấu phù hợp bộ lọc.</p>
           <div v-for="m in visibleResults" :key="m.id" class="result-round">
             <div class="result-row-heading"><small>{{ m.roundName }} · Trận {{ m.position + 1 }}</small><button class="match-detail-btn" @click="openVoteDetails(m)">Xem chi tiết</button></div>

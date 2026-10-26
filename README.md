@@ -21,6 +21,10 @@ Website bình chọn bài hát theo thể thức loại trực tiếp.
 - Bảng xếp hạng người chơi theo từng giải: tổng lượt vote giảm dần, sau đó số lượt chọn bài thắng ở trận đã chốt; bằng điểm thì cùng hạng
 - Chặn bài trùng khi tìm kiếm, thêm hàng loạt, nhập tay, tải file và gọi API: chuẩn hóa tên bài + nghệ sĩ (Unicode, hoa/thường, khoảng trắng), hoặc cùng ID video YouTube / track Spotify
 - Trang kết quả có các thẻ chọn giải, lọc theo vòng (64, 32, 16, tứ kết…), trạng thái và phân trang 10/20/50 trận
+- Giao diện tối đồng bộ màu nền/chữ/bảng/biểu mẫu; chỉ một nút đóng/mở sidebar ở thanh đầu trang
+- Trận chung kết duy nhất được căn giữa, có tiêu đề và hiệu ứng viền riêng
+- Sân khấu vinh danh quán quân dùng đĩa nhạc, ảnh bài hát, chữ công bố và pháo giấy tự chạy; có thể tung lại hiệu ứng
+- Tìm đoạn nghe thử khớp chính xác tên bài và nghệ sĩ qua API tìm kiếm sẵn có, phát tối đa 30 giây với nút dừng/phát lại. Nếu trình duyệt chặn tự phát, dùng trình nghe trên sân khấu; nếu thiếu bản nghe thử, dùng trình phát YouTube/Spotify từ link bản thu hoặc mở link bài hát. Đổi trang sẽ dừng nhạc; cập nhật phiếu trực tiếp không làm nhạc khởi động lại. Hiệu ứng tôn trọng tùy chọn giảm chuyển động của thiết bị
 - API backend lưu dữ liệu trong database
 
 > Lưu ý chống gian lận: định danh voter phía trình duyệt phù hợp cho bản demo/nhóm nhỏ, không thể đảm bảo một người chỉ vote một lần nếu họ xóa dữ liệu trình duyệt hoặc dùng thiết bị khác. Nếu cần vận hành công khai, nên thêm đăng nhập hoặc mã xác thực.

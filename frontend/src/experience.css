@@ -1,0 +1,151 @@
+/* One palette for the entire application, including page gutters and dialogs. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0c1220;
+  --surface: #141e30;
+  --pale: #19253a;
+  --surface-muted: #24324a;
+  --ink: #eaf0fa;
+  --muted: #adbbd0;
+  --line: #34445d;
+  --blue: #a5b4fc;
+  --blue2: #a5b4fc;
+  --green: #6ee7b7;
+  --red: #fda4af;
+  --shadow: 0 2px 8px #0003;
+  --shadow-md: 0 8px 30px #0005;
+  color: var(--ink);
+  background: var(--canvas);
+}
+html[data-theme="light"] { color-scheme: light; }
+body, .main { color: var(--ink); }
+.sidebar { --muted: #a8b5cb; }
+.sidebar.collapsed .sidebar-header-row { display: none; }
+.sidebar-toggle-btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; flex-shrink: 0; }
+.prediction-text p, .prediction-text .muted { color: #ede9fe; opacity: 1; }
+.podium-stage-pill, .podium-diff-pill, .podium-artist { color: #d5deed; }
+.podium-medal-badge.silver-badge, .podium-medal-badge.gold-badge { color: #182238; }
+button:focus-visible, a:focus-visible { outline: 3px solid #818cf8; outline-offset: 3px; }
+
+html[data-theme="dark"] :is(.topbar, .sidebar, .footer) { background: #111a2b; border-color: var(--line); }
+html[data-theme="dark"] .nav-item.active { background: #302c5b; color: #e0e7ff; }
+html[data-theme="dark"] .nav-item.active span { color: #c7d2fe; }
+html[data-theme="dark"] :is(.soft, .text-btn, .score, .vote-btn, .tree-vote-btn) { color: var(--blue); }
+html[data-theme="dark"] :is(.vote-btn, .tree-vote-btn) { background: #292d55; border-color: #4c5286; }
+html[data-theme="dark"] :is(.vote-btn.selected, .tree-vote-btn.selected) { background: #175443; color: #a7f3d0; border-color: #347e68; }
+html[data-theme="dark"] :is(.round-tabs button.active, .page-num-btn.active, .vote-filter-btn.active, .lb-pill.active) { color: #fff; }
+html[data-theme="dark"] :is(input, textarea, select) { border-color: var(--line); }
+html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color: #93a3bc; opacity: 1; }
+html[data-theme="dark"] :is(.tip-box, .guest-mode-notice, .quick-login-btn, .quick-login-btn-acc, .login-role-tip) { background: #202e46; border-color: #425779; color: #d9e6fa; }
+html[data-theme="dark"] :is(.guest-notice-content b, .guest-notice-content p, .login-form-group label, .login-role-tip b, .quick-admin-title) { color: #d9e6fa; }
+html[data-theme="dark"] :is(.sub-tab-btn.active, .mini-icon, .pill-btn, .quick-tag, .song-type-tag) { background: #2b315b; color: #c7d2fe; border-color: #535d93; }
+html[data-theme="dark"] :is(.current-round-banner, .status-pill, .match-state.live, .match-state.won, .mini-status.won, .mini-status.live, .banner-tag.openTag, .alert.success) { background: #123c33; color: #a7f3d0; border-color: #326f5e; }
+html[data-theme="dark"] :is(.roundClosedBanner, .status-pill.off, .banner-tag.closedTag, .alert.error, .danger) { background: #442533; color: #fecdd3; border-color: #805066; }
+html[data-theme="dark"] :is(.match-card.matchLocked, .tree-match-card.treeMatchLocked) { background: var(--surface); border-color: #725060; }
+html[data-theme="dark"] :is(.match-song, .tree-match-song, .final-song-row) { background: var(--pale); color: var(--ink); }
+html[data-theme="dark"] :is(.match-song.winner, .tree-match-song.winner) { background: #143d34; border-color: #387c68; }
+html[data-theme="dark"] .prediction-card-banner { background: linear-gradient(115deg, #373080, #5b2590); }
+html[data-theme="dark"] .lb-data-row.isChampRow { background: #3a3021; }
+html[data-theme="dark"] :is(.goldStage, .wildcard-tag, .wildcard-badge, .gold-header) { background: #493a20 !important; color: #fde68a !important; border-color: #8b7137 !important; }
+html[data-theme="dark"] :is(.silverStage, .diffZeroChip, .mini-status.closed, .match-state.closedState) { background: #2b3950; color: #d3ddeb; }
+html[data-theme="dark"] :is(.diffPosChip, .openState) { color: #a7f3d0; }
+html[data-theme="dark"] .diffPosChip { background: #163f35; border-color: #34765f; }
+html[data-theme="dark"] .diffNegChip { background: #452534; color: #fecdd3; border-color: #805066; }
+html[data-theme="dark"] .bracket-tree-wrapper { background: radial-gradient(ellipse at top, #25274b, #101a2b 75%); }
+html[data-theme="dark"] .final-glow-card { background: #282745 !important; border-color: #b7a366 !important; }
+html[data-theme="dark"] .tree-round-header { background: var(--surface); color: var(--ink); border-color: var(--line); }
+
+/* The last match gets its own centered arena, never an empty second column. */
+.finale-intro { text-align: center; padding: 26px 12px 22px; }
+.finale-eyebrow { color: #9a6913; font-size: 11px; font-weight: 800; letter-spacing: 3px; }
+.finale-intro h3 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -1.5px; margin: 8px 0; color: var(--ink); }
+.finale-intro p { color: var(--muted); font-size: 13px; }
+.match-grid.finale-match-grid { grid-template-columns: minmax(0, 760px); justify-content: center; padding: 4px 8px 30px; }
+.match-card.finale-match-card { position: relative; padding: 22px; border: 1px solid #c4a451; border-radius: 16px; background: linear-gradient(135deg, #fffdf6, #f4f2ff); box-shadow: 0 12px 42px #6558b51c, 0 0 0 6px #c4a4510c; animation: finale-arrive .7s ease both, finale-glow 4s ease-in-out .7s infinite; }
+.finale-match-card .match-top { color: #8a6112; font-weight: 800; padding-bottom: 16px; margin-bottom: 16px; }
+.finale-match-card .match-song { padding: 18px 14px; border-radius: 10px; }
+.finale-match-card .song-cover-box { width: 62px; height: 62px; border-radius: 10px; }
+.finale-match-card .song-meta b { font-size: 17px; }
+.finale-match-card .vote-btn { padding: 8px 18px; font-weight: 700; }
+html[data-theme="dark"] .finale-eyebrow, html[data-theme="dark"] .finale-match-card .match-top { color: #f5d884; }
+html[data-theme="dark"] .match-card.finale-match-card { background: linear-gradient(140deg, #22263f, #182337); border-color: #9b854b; box-shadow: 0 12px 42px #0004, 0 0 0 6px #e3c66b09; }
+@keyframes finale-arrive { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes finale-glow { 0%, 100% { box-shadow: 0 12px 40px #6558b51c, 0 0 0 5px #c4a4510c; } 50% { box-shadow: 0 12px 40px #6558b52c, 0 0 0 8px #c4a45118; } }
+
+/* A record release stage shared by the rounds and results pages. */
+.winner-stage { position: relative; isolation: isolate; overflow: hidden; margin: 32px 0 20px; padding: 26px 32px 30px; border: 1px solid #b9a266; border-radius: 20px; color: #f8fafc; background: radial-gradient(ellipse at 20% 65%, #4a416455, transparent 50%), radial-gradient(ellipse at 85% 0%, #755f2d44, transparent 50%), linear-gradient(120deg, #141b32, #201d35 65%, #191d2d); box-shadow: 0 16px 50px #10152926; }
+.winner-stage::before { content: ''; position: absolute; inset: 0; z-index: -1; background: repeating-linear-gradient(115deg, transparent 0 65px, #fff01 65px 66px); pointer-events: none; }
+.winner-stage-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; font-size: 10px; letter-spacing: 2px; color: #d6c18b; font-weight: 700; }
+.winner-champion-chip { display: inline-flex; padding: 8px 14px; border-radius: 24px; color: #ffe6a3; background: #6b56264d; border: 1px solid #b9a26666; letter-spacing: 1.5px; }
+.winner-stage-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 42px; align-items: center; }
+.winner-turntable { position: relative; display: grid; place-items: center; min-height: 290px; }
+.winner-record-halo { position: absolute; width: 270px; aspect-ratio: 1; border-radius: 50%; background: #b6a1f61c; box-shadow: 0 0 75px #a5b4fc24; border: 1px solid #d1c19938; }
+.winner-record { position: relative; display: grid; place-items: center; width: 242px; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #0c1020 0 3px, #23283a 4px 5px, #101421 6px 8px); border: 3px solid #3e465a; box-shadow: 10px 12px 25px #0008, inset 0 0 0 3px #0a0e18; animation: winner-record-turn 12s linear infinite; animation-play-state: paused; }
+.winner-record::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 45deg, transparent, #d0d6f533, transparent 30%, transparent 60%, #d0d6f52b, transparent 85%); }
+.winner-record-label { position: relative; width: 94px; height: 94px; border-radius: 50%; overflow: hidden; border: 5px solid #c7b06e; background: #4b4069; }
+.winner-record-label img { width: 100%; height: 100%; object-fit: cover; }
+.winner-record-label span { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #13192b; border: 2px solid #eee1c2; inset: 50% auto auto 50%; transform: translate(-50%, -50%); }
+.winner-tonearm { position: absolute; top: 20px; right: 18px; width: 13px; height: 130px; border-radius: 10px; background: linear-gradient(90deg, #8993aa, #e1e6ef 45%, #727b90); transform: rotate(-24deg); transform-origin: top; box-shadow: 3px 3px 8px #0007; }
+.winner-tonearm::after { content: ''; position: absolute; bottom: -9px; left: -3px; width: 20px; height: 32px; background: #c6ad71; border-radius: 5px; }
+.winner-record-caption { position: absolute; bottom: -5px; font-size: 9px; color: #a8b5cc; letter-spacing: 3px; }
+.winner-overline { font-size: 11px; letter-spacing: 2px; color: #d7c38d; font-weight: 800; margin-bottom: 14px; }
+.winner-song-title { font-size: clamp(30px, 4vw, 56px); line-height: 1.12; letter-spacing: -1.6px; color: #fff4cf; overflow-wrap: anywhere; animation: winner-title-reveal .9s ease both; }
+.winner-artist { color: #e2e7f2; font-size: 18px; margin-top: 10px; }
+.winner-tournament { color: #b9c4d7; font-size: 13px; margin-top: 12px; }
+.winner-equalizer { display: flex; align-items: center; gap: 4px; height: 45px; margin: 20px 0; }
+.winner-equalizer i { width: 4px; height: var(--bar-height); border-radius: 5px; background: linear-gradient(#ecdb9e, #a8a4e8); transform: scaleY(.3); }
+.winner-equalizer.active i { animation: winner-wave .65s ease-in-out var(--bar-delay) infinite alternate; }
+.winner-is-playing .winner-record { animation-play-state: running; }
+.winner-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.winner-play-button, .winner-secondary-button { border-radius: 8px; padding: 11px 16px; border: 1px solid #c3b99c66; font-size: 12px; font-weight: 700; }
+.winner-play-button { background: #f1d995; color: #24202b; border-color: #f1d995; }
+.winner-secondary-button { background: #ffffff0c; color: #e6eaf4; }
+.winner-media-note { margin-top: 14px; color: #bdc9dd; font-size: 12px; line-height: 1.6; }
+.winner-source-link { display: inline-block; color: #e9d79e; font-size: 12px; margin-top: 10px; }
+.winner-audio-panel { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 16px 20px; margin-top: 30px; border: 1px solid #a5b4fc33; background: #0c122066; border-radius: 12px; }
+.winner-audio-panel span { font-size: 12px; color: #cbd5e8; }
+.winner-audio-panel audio { flex: 1; min-width: 220px; max-width: 480px; height: 36px; color-scheme: dark; }
+.winner-embed-panel { max-width: 680px; margin: 26px auto 0; }
+.winner-embed-panel iframe { width: 100%; height: 300px; border: 0; border-radius: 12px; }
+.winner-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; }
+.winner-confetti i { position: absolute; left: var(--x); top: -20px; width: 7px; height: 12px; border-radius: 2px; background: var(--confetti-color); animation: winner-confetti-fall var(--duration) linear var(--delay) 2 both; }
+.winner-fireworks { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.winner-fireworks i { position: absolute; color: #f1d995; font-style: normal; font-size: 90px; left: 5%; top: 8%; opacity: 0; animation: winner-burst 2.8s ease-out var(--burst-delay) 2; }
+.winner-fireworks i:nth-child(2) { left: 80%; top: 10%; color: #c4b5fd; }
+.winner-fireworks i:nth-child(3) { left: 65%; top: 65%; font-size: 70px; }
+.winner-fireworks i:nth-child(4) { left: 30%; top: 60%; color: #99f6e4; }
+@keyframes winner-record-turn { to { transform: rotate(360deg); } }
+@keyframes winner-title-reveal { from { opacity: 0; transform: translateY(15px); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes winner-wave { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+@keyframes winner-confetti-fall { 0% { opacity: 0; transform: translate3d(0,-10px,0) rotate(0); } 8% { opacity: .9; } 100% { opacity: 0; transform: translate3d(var(--drift),650px,0) rotate(640deg); } }
+@keyframes winner-burst { 0% { opacity: 0; transform: scale(.2) rotate(0); } 20% { opacity: .6; } 100% { opacity: 0; transform: scale(2) rotate(35deg); } }
+
+@media (max-width: 900px) { .winner-stage-grid { grid-template-columns: 230px minmax(0,1fr); gap: 24px; } .winner-turntable { transform: scale(.85); margin: -15px; } }
+@media (max-width: 760px) {
+  .shell, .shell.sidebarCollapsed { grid-template-columns: minmax(0,1fr); }
+  .sidebar.collapsed { display: none; }
+  .sidebar-header-row { display: none; }
+  .sidebar { position: static; }
+  .section-head { flex-direction: column; align-items: stretch; }
+  .section-head > div { min-width: 0; }
+  .section-head h3 { overflow-wrap: anywhere; }
+  .head-actions { flex-wrap: wrap; }
+  .current-round-banner { flex-wrap: wrap; gap: 12px; }
+  .winner-stage { padding: 20px; }
+  .winner-stage-grid { grid-template-columns: minmax(0,1fr); gap: 28px; text-align: center; }
+  .winner-turntable { width: 280px; justify-self: center; }
+  .winner-equalizer, .winner-actions { justify-content: center; }
+  .winner-tonearm { right: 10px; }
+  .winner-song-title { font-size: 34px; }
+  .winner-audio-panel { padding: 14px; justify-content: center; }
+  .winner-audio-panel audio { width: 100%; min-width: 0; }
+  .finale-match-card .song-cover-box { width: 42px; height: 42px; }
+  .finale-match-card .song-meta b { font-size: 14px; }
+  .match-card.finale-match-card { padding: 14px; }
+  .finale-match-card .match-song { padding: 12px 8px; }
+  .finale-match-card .vote-btn { padding: 6px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .winner-stage *, .finale-match-card { animation: none !important; transition: none !important; }
+  .winner-confetti, .winner-fireworks { display: none; }
+}
