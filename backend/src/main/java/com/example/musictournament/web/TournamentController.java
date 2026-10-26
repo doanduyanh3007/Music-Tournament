@@ -39,11 +39,18 @@ public class TournamentController {
     public Map<String,Object> status(@PathVariable Long id,@RequestParam boolean active){return service.setActive(id,active);}
     @PostMapping("/admin/verify")
     public Map<String, Object> verifyAdmin(@RequestBody(required = false) Map<String, String> body) {
+        String email = body != null ? (body.get("email") != null ? body.get("email") : body.get("username")) : null;
+        String password = body != null ? body.get("password") : null;
         String token = body != null ? body.get("token") : null;
-        if (token != null && token.trim().equals(adminToken.trim())) {
-            return Map.of("valid", true, "role", "ADMIN", "message", "Xác thực quản trị viên thành công!");
-        }
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mã quản trị viên không chính xác.");
+        return service.authenticateAdmin(email != null && !email.isBlank() ? email : token, password);
+    }
+
+    @PostMapping("/admin/login")
+    public Map<String, Object> loginAdmin(@RequestBody(required = false) Map<String, String> body) {
+        String email = body != null ? (body.get("email") != null ? body.get("email") : body.get("username")) : null;
+        String password = body != null ? body.get("password") : null;
+        String token = body != null ? body.get("token") : null;
+        return service.authenticateAdmin(email != null && !email.isBlank() ? email : token, password);
     }
 
     @GetMapping("/tournaments/{id}/leaderboard")

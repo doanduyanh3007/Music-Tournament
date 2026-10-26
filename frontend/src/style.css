@@ -3103,6 +3103,44 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .quick-login-btn:hover {
   background: #e0e7ff;
 }
+.quick-admin-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0;
+}
+.quick-admin-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.quick-admin-btns-row {
+  display: flex;
+  gap: 6px;
+  flex-direction: column;
+}
+.quick-login-btn-acc {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  border: 1px dashed #6366f1;
+  background: #f8fafc;
+  color: #4338ca;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.quick-login-btn-acc:hover {
+  background: #ede9fe;
+  border-color: #4f46e5;
+  transform: translateX(2px);
+}
 .cancel-btn {
   padding: 8px 14px;
   font-size: 12px;
@@ -3950,6 +3988,17 @@ html[data-theme="dark"] .quick-login-btn {
   background: #1f2937;
   border-color: #6366f1;
   color: #a5b4fc;
+}
+html[data-theme="dark"] .quick-login-btn-acc {
+  background: #1f2937;
+  border-color: #6366f1;
+  color: #c7d2fe;
+}
+html[data-theme="dark"] .quick-login-btn-acc:hover {
+  background: #312e81;
+}
+html[data-theme="dark"] .quick-admin-title {
+  color: #9ca3af;
 }
 html[data-theme="dark"] .login-role-tip {
   background: #1f2937;

@@ -4,7 +4,9 @@ import com.example.musictournament.dto.CreateTournamentRequest;
 import com.example.musictournament.dto.VoteRequest;
 import com.example.musictournament.model.*;
 import com.example.musictournament.repo.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,16 +24,88 @@ public class TournamentService {
     private final MatchRepository matches;
     private final VoteRepository votes;
     private final WildcardRepository wildcards;
+    private final AdminAccountRepository adminAccounts;
     private final EntityManager em;
+    private final String adminToken;
 
     public TournamentService(TournamentRepository tournaments, SongRepository songs,
-                             MatchRepository matches, VoteRepository votes, WildcardRepository wildcards, EntityManager em) {
+                             MatchRepository matches, VoteRepository votes, WildcardRepository wildcards,
+                             AdminAccountRepository adminAccounts, EntityManager em,
+                             @Value("${app.admin-token:admin-demo-2026}") String adminToken) {
         this.tournaments = tournaments;
         this.songs = songs;
         this.matches = matches;
         this.votes = votes;
         this.wildcards = wildcards;
+        this.adminAccounts = adminAccounts;
         this.em = em;
+        this.adminToken = adminToken;
+    }
+
+    @PostConstruct
+    public void initDefaultAdmins() {
+        initAdminIfAbsent("duyanh@gmail.com", "123456", "Đoàn Duy Anh");
+        initAdminIfAbsent("hoangkhanh@gmail.com", "123456", "Hoàng Khánh");
+    }
+
+    private void initAdminIfAbsent(String email, String password, String name) {
+        Optional<AdminAccount> existing = adminAccounts.findByEmailIgnoreCase(email);
+        if (existing.isEmpty()) {
+            adminAccounts.save(new AdminAccount(email, password, name, "ADMIN"));
+        } else {
+            AdminAccount acc = existing.get();
+            if (!password.equals(acc.getPassword())) {
+                acc.setPassword(password);
+                acc.setName(name);
+                adminAccounts.save(acc);
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> authenticateAdmin(String emailOrToken, String password) {
+        // Authenticate by email & password
+        if (emailOrToken != null && !emailOrToken.isBlank()) {
+            String cleanEmail = emailOrToken.trim();
+            Optional<AdminAccount> accountOpt = adminAccounts.findByEmailIgnoreCase(cleanEmail);
+            if (accountOpt.isPresent()) {
+                AdminAccount account = accountOpt.get();
+                if (password != null && password.trim().equals(account.getPassword())) {
+                    return Map.of(
+                            "valid", true,
+                            "role", account.getRole(),
+                            "email", account.getEmail(),
+                            "name", account.getName(),
+                            "message", "Đăng nhập Quản trị viên thành công!"
+                    );
+                } else {
+                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mật khẩu không chính xác.");
+                }
+            }
+        }
+
+        // Backward compatibility: If token matches adminToken (admin-demo-2026)
+        if (emailOrToken != null && emailOrToken.trim().equals(adminToken.trim())) {
+            return Map.of(
+                    "valid", true,
+                    "role", "ADMIN",
+                    "email", "admin-demo-2026",
+                    "name", "Quản trị viên Demo",
+                    "message", "Xác thực quản trị viên thành công!"
+            );
+        }
+
+        if (password != null && password.trim().equals(adminToken.trim())) {
+            return Map.of(
+                    "valid", true,
+                    "role", "ADMIN",
+                    "email", "admin-demo-2026",
+                    "name", "Quản trị viên Demo",
+                    "message", "Xác thực quản trị viên thành công!"
+            );
+        }
+
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản hoặc mật khẩu Quản trị viên không chính xác.");
     }
 
     @Transactional

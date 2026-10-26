@@ -62,39 +62,60 @@ function toggleTheme() {
 // 4. Admin & Guest Role Permissions
 const userRole = ref(localStorage.getItem('musicTournamentRole') || 'GUEST')
 const isAdmin = computed(() => userRole.value === 'ADMIN')
+const currentAdminName = ref(localStorage.getItem('musicTournamentAdminName') || '')
+const currentAdminEmail = ref(localStorage.getItem('musicTournamentAdminEmail') || '')
 const showLoginModal = ref(false)
+const adminEmailInput = ref('')
 const adminPasswordInput = ref('')
 const loginError = ref('')
 
-async function loginAdmin(tokenToVerify) {
-  const token = tokenToVerify !== undefined ? tokenToVerify : adminPasswordInput.value
+async function loginAdmin(customEmail, customPass) {
+  const email = customEmail !== undefined ? customEmail : adminEmailInput.value
+  const password = customPass !== undefined ? customPass : adminPasswordInput.value
   loginError.value = ''
   try {
-    const res = await api('/admin/verify', {
+    const res = await api('/admin/login', {
       method: 'POST',
-      body: JSON.stringify({ token: (token || '').trim() })
+      body: JSON.stringify({
+        email: (email || '').trim(),
+        password: (password || '').trim()
+      })
     })
     if (res.valid) {
       userRole.value = 'ADMIN'
+      currentAdminName.value = res.name || 'Quản trị viên'
+      currentAdminEmail.value = res.email || email
       localStorage.setItem('musicTournamentRole', 'ADMIN')
+      localStorage.setItem('musicTournamentAdminName', currentAdminName.value)
+      localStorage.setItem('musicTournamentAdminEmail', currentAdminEmail.value)
       showLoginModal.value = false
       adminPasswordInput.value = ''
-      flash('👑 Đăng nhập Quản trị viên thành công!')
+      adminEmailInput.value = ''
+      flash(`👑 Xin chào ${currentAdminName.value}! Đăng nhập Quản trị viên thành công.`)
     }
   } catch (err) {
-    loginError.value = err.message || 'Mã quản trị viên không chính xác (Mặc định: admin-demo-2026)'
+    loginError.value = err.message || 'Tài khoản hoặc mật khẩu không chính xác.'
   }
 }
 
+function quickLoginAdminAccount(email, password) {
+  adminEmailInput.value = email
+  adminPasswordInput.value = password
+  loginAdmin(email, password)
+}
+
 function quickLoginAdmin() {
-  adminPasswordInput.value = 'admin-demo-2026'
-  loginAdmin('admin-demo-2026')
+  quickLoginAdminAccount('duyanh@gmail.com', '123456')
 }
 
 function logoutAdmin() {
   userRole.value = 'GUEST'
+  currentAdminName.value = ''
+  currentAdminEmail.value = ''
   localStorage.setItem('musicTournamentRole', 'GUEST')
-  flash('👤 Đã chuyển sang chế độ Khách (Người bình chọn).')
+  localStorage.removeItem('musicTournamentAdminName')
+  localStorage.removeItem('musicTournamentAdminEmail')
+  flash('👤 Đã đăng xuất. Bạn đang ở chế độ Khách (Người bình chọn).')
 }
 
 function requireAdmin(actionName, callback) {
@@ -1307,7 +1328,9 @@ onUnmounted(() => {
 
     <!-- Role Badge & Admin Login / Logout -->
     <div class="topbar-role-group">
-      <span v-if="isAdmin" class="role-pill admin-pill" title="Tài khoản Quản trị viên (Admin)">👑 Admin</span>
+      <span v-if="isAdmin" class="role-pill admin-pill" :title="'Quản trị viên: ' + (currentAdminEmail || '')">
+        👑 {{ currentAdminName ? currentAdminName.split(' ')[0] : 'Admin' }} ({{ currentAdminEmail || 'Admin' }})
+      </span>
       <span v-else class="role-pill guest-pill" title="Chế độ Khách bình chọn (Guest)">👤 Khách</span>
       <button v-if="isAdmin" class="btn mini-btn role-btn logout-btn" @click="logoutAdmin" title="Đăng xuất chế độ Admin">Đăng xuất</button>
       <button v-else class="btn mini-btn role-btn login-btn" @click="showLoginModal=true" title="Đăng nhập tài khoản Quản trị">👑 Đăng nhập Admin</button>
@@ -2430,31 +2453,57 @@ onUnmounted(() => {
         <div v-if="loginError" class="alert error login-error">
           <span>⚠</span>{{ loginError }}
         </div>
+
+        <!-- Form fields: Email & Password -->
         <div class="login-form-group">
-          <label>Mã token / Mật khẩu Quản trị:</label>
+          <label>Tài khoản / Email:</label>
           <input 
-            v-model="adminPasswordInput" 
-            type="password" 
-            placeholder="Nhập mã token (mặc định: admin-demo-2026)" 
+            v-model="adminEmailInput" 
+            type="text" 
+            placeholder="duyanh@gmail.com hoặc hoangkhanh@gmail.com" 
             class="admin-password-box"
             @keyup.enter="loginAdmin()"
           >
         </div>
+
+        <div class="login-form-group">
+          <label>Mật khẩu:</label>
+          <input 
+            v-model="adminPasswordInput" 
+            type="password" 
+            placeholder="Nhập mật khẩu (123456)" 
+            class="admin-password-box"
+            @keyup.enter="loginAdmin()"
+          >
+        </div>
+
         <div class="login-modal-buttons">
           <button class="btn primary login-submit-btn" @click="loginAdmin()">
-            ✓ Xác nhận Đăng nhập
+            ✓ Đăng nhập Quản trị
           </button>
-          <button class="btn soft quick-login-btn" @click="quickLoginAdmin">
-            ⚡ Đăng nhập nhanh Demo (admin-demo-2026)
-          </button>
+
+          <div class="quick-admin-accounts-list">
+            <span class="quick-admin-title">⚡ Đăng nhập nhanh 1 chạm:</span>
+            <div class="quick-admin-btns-row">
+              <button class="btn soft quick-login-btn-acc" @click="quickLoginAdminAccount('duyanh@gmail.com', '123456')">
+                👤 Duy Anh (duyanh@gmail.com - mk: 123456)
+              </button>
+              <button class="btn soft quick-login-btn-acc" @click="quickLoginAdminAccount('hoangkhanh@gmail.com', '123456')">
+                👤 Hoàng Khánh (hoangkhanh@gmail.com - mk: 123456)
+              </button>
+            </div>
+          </div>
+
           <button class="btn cancel-btn" @click="showLoginModal=false">
             Hủy bỏ
           </button>
         </div>
+
         <div class="login-role-tip">
-          <b>💡 Phân quyền tài khoản:</b>
-          <p>• <b>Khách (Guest)</b>: Xem giải đấu, bình chọn vote, xem sơ đồ cây & thu phóng, xem bảng xếp hạng & hiệu số, dự đoán Quán quân, nghe thử nhạc, lưu bài yêu thích ❤️, chia sẻ link & quét mã QR.</p>
-          <p>• <b>Admin (Quản trị viên)</b>: Toàn bộ quyền của Khách + Tạo giải đấu mới, nạp bài hàng loạt (Excel/Sheets/YouTube/Spotify), mở/đóng bình chọn từng vòng, chốt kết quả vòng & đóng/mở toàn bộ giải.</p>
+          <b>🔑 2 Tài khoản Quản trị viên (Admin):</b>
+          <p>• <b>Admin 1</b>: <code>duyanh@gmail.com</code> | Mật khẩu: <code>123456</code> (Đoàn Duy Anh)</p>
+          <p>• <b>Admin 2</b>: <code>hoangkhanh@gmail.com</code> | Mật khẩu: <code>123456</code> (Hoàng Khánh)</p>
+          <small class="muted" style="display:block;margin-top:6px;">Quản trị viên có toàn quyền: Tạo giải mới, nạp bài hát, xáo trộn & xếp nhánh, mở/đóng bình chọn từng vòng, chốt kết quả và đóng/mở toàn bộ giải đấu.</small>
         </div>
       </div>
     </div>
