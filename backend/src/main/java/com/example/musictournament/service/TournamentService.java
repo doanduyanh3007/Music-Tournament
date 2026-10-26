@@ -64,16 +64,14 @@ public class TournamentService {
         List<TournamentMatch> matchesToSave = new ArrayList<>();
         int totalSongs = entrants.size();
 
-        if (totalSongs > 48) {
-            // Rule: 1 vòng tối đa 48 bài (24 cặp). Nếu vượt quá 48 bài, tự động chia đều làm 2 vòng:
-            // Vòng 0: Vòng loại 1 (nửa đầu)
-            // Vòng 1: Vòng loại 2 (nửa sau)
-            // Vòng 2 trở đi: Ghép các người thắng từ 2 vòng loại vào nhánh đấu chính (Vòng chính, Tứ kết, Bán kết, Chung kết...)
+        if (totalSongs >= 48) {
+            // Rule: 1 vòng tối đa 48 bài tương đương 24 cặp đấu.
+            // Nếu số lượng bài đạt từ 48 trở lên (hoặc vượt ngưỡng), chia đều cho 2 vòng loại (Vòng loại 1 & Vòng loại 2), mỗi vòng <= 24 cặp!
             int half1 = totalSongs / 2;
             List<Song> group1 = entrants.subList(0, half1);
             List<Song> group2 = entrants.subList(half1, totalSongs);
 
-            // Xếp Vòng 0 (Vòng loại 1)
+            // Xếp Vòng 0 (Vòng loại 1) - tối đa 24 bài (12 cặp) hoặc chia đều
             int pos0 = 0;
             for (int i = 0; i < group1.size(); i += 2) {
                 Song a = group1.get(i);
@@ -106,7 +104,7 @@ public class TournamentService {
                 roundIdx++;
             }
         } else {
-            // Chuẩn thông thường khi <= 48 bài (tối đa 24 cặp)
+            // Chuẩn thông thường khi < 48 bài (tối đa < 24 cặp)
             int size = 1; while (size < entrants.size()) size *= 2;
             int byes = size - entrants.size();
 

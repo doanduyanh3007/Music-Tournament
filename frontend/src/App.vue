@@ -16,6 +16,7 @@ const songText = ref('')
 const adminToken = ref('admin-demo-2026')
 const endTime = ref('')
 const showAdmin = ref(false)
+const isSidebarCollapsed = ref(false)
 
 // Seeding & Bracket setup
 const seedingMode = ref('custom') // 'custom' (theo thứ tự sắp xếp) | 'shuffle' (ngẫu nhiên)
@@ -126,7 +127,7 @@ const parsedSongs = computed(() => {
 const bracketStats = computed(() => {
   const count = parsedSongs.value.length
   if (count < 2) return null
-  if (count > 48) {
+  if (count >= 48) {
     const half1 = Math.floor(count / 2)
     const half2 = count - half1
     const matchesRound1 = Math.ceil(half1 / 2)
@@ -148,7 +149,7 @@ const previewPairings = computed(() => {
   const pairs = []
   let pos = 1
 
-  if (count > 48) {
+  if (count >= 48) {
     // Chia 2 vòng loại
     const half1 = Math.floor(count / 2)
     const group1 = songs.slice(0, half1)
@@ -565,19 +566,27 @@ onUnmounted(() => {
 
 <template>
   <header class="topbar">
+    <button class="btn sidebar-toggle-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu để tiết kiệm diện tích'">
+      {{ isSidebarCollapsed ? '☰' : '◀' }}
+    </button>
     <div class="brand-mark">♫</div>
     <div class="brand-copy"><h1>Music Tournament</h1><p>Giải đấu bài hát · tìm ra quán quân</p></div>
     <div class="top-spacer"></div><span class="top-slogan">Cùng chọn ra bài hát hay nhất! ♪</span>
     <button class="btn top-btn" @click="exportResults" :disabled="!tournament">⇩ Xuất kết quả</button>
   </header>
 
-  <div class="shell">
-    <aside class="sidebar">
+  <div class="shell" :class="{sidebarCollapsed: isSidebarCollapsed}">
+    <aside class="sidebar" :class="{collapsed: isSidebarCollapsed}">
+      <div class="sidebar-header-row">
+        <button class="aside-fold-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng menu' : 'Đóng menu'">
+          {{ isSidebarCollapsed ? '▶ Mở menu' : '◀ Thu gọn' }}
+        </button>
+      </div>
       <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
-        :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id">
-        <span>{{ item.icon }}</span>{{ item.label }}
+        :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
+        <span>{{ item.icon }}</span><span class="nav-label">{{ item.label }}</span>
       </button>
-      <div class="side-quote">“Âm nhạc không chỉ là giai điệu, mà còn là cảm xúc kết nối chúng ta.”<div class="sound-wave">∿∿∿∿∿ ♡</div></div>
+      <div v-show="!isSidebarCollapsed" class="side-quote">“Âm nhạc không chỉ là giai điệu, mà còn là cảm xúc kết nối chúng ta.”<div class="sound-wave">∿∿∿∿∿ ♡</div></div>
     </aside>
 
     <main class="main">
@@ -634,7 +643,7 @@ onUnmounted(() => {
               <span>Danh sách bài hát <span class="muted small">(mỗi dòng 1 bài: Tên — Nghệ sĩ | link YouTube/Spotify hoặc copy từ Excel)</span></span>
               <span v-if="bracketStats" class="bracket-badge" :class="{perfect:!bracketStats.isSplit && bracketStats.byes===0}">
                 <template v-if="bracketStats.isSplit">
-                  ⚡ {{ bracketStats.count }} bài (>48 bài) ➔ Tự động chia 2 vòng: Vòng loại 1 ({{ bracketStats.half1 }} bài/{{ bracketStats.matchesRound1 }} trận) & Vòng loại 2 ({{ bracketStats.half2 }} bài/{{ bracketStats.matchesRound2 }} trận)
+                  ⚡ {{ bracketStats.count }} bài (≥ 48 bài) ➔ Tự động chia 2 vòng: Vòng loại 1 ({{ bracketStats.half1 }} bài/{{ bracketStats.matchesRound1 }} trận) & Vòng loại 2 ({{ bracketStats.half2 }} bài/{{ bracketStats.matchesRound2 }} trận)
                 </template>
                 <template v-else>
                   {{ bracketStats.count }} bài ➔ Nhánh {{ bracketStats.size }} ({{ bracketStats.byes === 0 ? 'Chuẩn nhánh, 0 vé vào thẳng' : bracketStats.byes + ' vé vào thẳng' }})
