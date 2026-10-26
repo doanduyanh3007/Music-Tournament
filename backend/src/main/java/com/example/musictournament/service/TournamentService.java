@@ -65,8 +65,11 @@ public class TournamentService {
             Collections.shuffle(entrants);
         }
 
-        List<TournamentMatch> matchesToSave = new ArrayList<>();
         int totalSongs = entrants.size();
+        // Áp dụng luật: Ở Vòng 64 & Vòng 32, không cho 2 bài cùng 1 tác giả gặp nhau
+        entrants = separateArtists(entrants, totalSongs);
+
+        List<TournamentMatch> matchesToSave = new ArrayList<>();
 
         if (totalSongs == 48) {
             // ==========================================
@@ -569,4 +572,172 @@ public class TournamentService {
         if (index == 0) return "Vòng 1";
         return "Vòng " + (index + 1);
     }
+
+    /**
+     * LUẬT THI ĐẤU: Ở Vòng 64, Vòng 32 không cho 2 bài cùng 1 tác giả gặp nhau.
+     * Tự động phân bổ các ca khúc của cùng một nghệ sĩ vào các nhánh/cặp đấu khác nhau,
+     * đồng thời tách biệt để không gặp nhau ở Vòng 32 (không chung quad).
+     */
+    private List<Song> separateArtists(List<Song> songList, int totalSongs) {
+        if (songList == null || songList.size() < 4) return songList;
+        int n = songList.size();
+
+        // Chuẩn hóa tên tác giả để nhóm
+        Map<String, List<Song>> byArtist = new LinkedHashMap<>();
+        List<Song> noArtist = new ArrayList<>();
+        for (Song s : songList) {
+            String art = (s.getArtist() == null) ? "" : s.getArtist().trim().toLowerCase();
+            if (art.isEmpty() || art.equals("—") || art.equals("-") || art.equals("unknown")) {
+                noArtist.add(s);
+            } else {
+                byArtist.computeIfAbsent(art, k -> new ArrayList<>()).add(s);
+            }
+        }
+
+        // Nếu không có tác giả nào có từ 2 bài trở lên thì giữ nguyên
+        if (byArtist.values().stream().noneMatch(list -> list.size() > 1)) {
+            return songList;
+        }
+
+        // Sắp xếp các nhóm tác giả có nhiều bài nhất lên trước
+        List<List<Song>> groups = new ArrayList<>(byArtist.values());
+        groups.sort((a, b) -> Integer.compare(b.size(), a.size()));
+        for (Song s : noArtist) {
+            groups.add(Collections.singletonList(s));
+        }
+
+        // Trải đều các bài hát theo vòng tròn (round-robin)
+        List<Song> distributed = new ArrayList<>(n);
+        boolean remaining = true;
+        int round = 0;
+        while (remaining) {
+            remaining = false;
+            for (List<Song> g : groups) {
+                if (round < g.size()) {
+                    distributed.add(g.get(round));
+                    remaining = true;
+                }
+            }
+            round++;
+        }
+
+        // Phân bổ vào các Quad (mỗi Quad gồm 2 trận = 4 slot)
+        int numQuads = Math.max(1, n / 4);
+        Song[] result = new Song[n];
+
+        // Lộ trình gán: rải đều lần lượt qua từng Quad
+        List<Integer> slotOrder = new ArrayList<>();
+        for (int q = 0; q < numQuads; q++) if (4 * q < n) slotOrder.add(4 * q);
+        for (int q = 0; q < numQuads; q++) if (4 * q + 2 < n) slotOrder.add(4 * q + 2);
+        for (int q = 0; q < numQuads; q++) if (4 * q + 1 < n) slotOrder.add(4 * q + 1);
+        for (int q = 0; q < numQuads; q++) if (4 * q + 3 < n) slotOrder.add(4 * q + 3);
+
+        for (int i = 0; i < distributed.size() && i < slotOrder.size(); i++) {
+            result[slotOrder.get(i)] = distributed.get(i);
+        }
+
+        // Điền các slot còn lại nếu có
+        int distIdx = slotOrder.size();
+        for (int i = 0; i < n; i++) {
+            if (result[i] == null && distIdx < distributed.size()) {
+                result[i] = distributed.get(distIdx++);
+            }
+        }
+
+        // Quét kiểm tra xung đột cùng tác giả trong cùng 1 trận (Vòng 64 hoặc Vòng 32)
+        resolveMatchConflicts(result, n);
+
+        // Quét kiểm tra xung đột trong cùng 1 Quad (để tránh gặp nhau ở Vòng 32 đối với giải 64 bài)
+        if (n >= 32) {
+            resolveQuadConflicts(result, n);
+        }
+
+        return Arrays.asList(result);
+    }
+
+    private void resolveMatchConflicts(Song[] arr, int n) {
+        int matches = n / 2;
+        for (int i = 0; i < matches; i++) {
+            Song a = arr[2 * i];
+            Song b = arr[2 * i + 1];
+            if (sameArtist(a, b)) {
+                boolean resolved = false;
+                for (int j = 0; j < matches; j++) {
+                    if (j == i) continue;
+                    Song otherA = arr[2 * j];
+                    Song otherB = arr[2 * j + 1];
+                    if (!sameArtist(a, otherB) && !sameArtist(otherA, b)) {
+                        arr[2 * i + 1] = otherB;
+                        arr[2 * j + 1] = b;
+                        resolved = true;
+                        break;
+                    }
+                }
+                if (!resolved) {
+                    for (int j = 0; j < matches; j++) {
+                        if (j == i) continue;
+                        Song otherA = arr[2 * j];
+                        Song otherB = arr[2 * j + 1];
+                        if (!sameArtist(a, otherA) && !sameArtist(otherB, b)) {
+                            arr[2 * i + 1] = otherA;
+                            arr[2 * j] = b;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void resolveQuadConflicts(Song[] arr, int n) {
+        int numQuads = n / 4;
+        for (int q = 0; q < numQuads; q++) {
+            int base = 4 * q;
+            for (int u = 0; u < 4; u++) {
+                for (int v = u + 1; v < 4; v++) {
+                    if (base + v >= n) continue;
+                    Song su = arr[base + u];
+                    Song sv = arr[base + v];
+                    if (sameArtist(su, sv)) {
+                        for (int otherQ = 0; otherQ < numQuads; otherQ++) {
+                            if (otherQ == q) continue;
+                            int otherBase = 4 * otherQ;
+                            for (int w = 0; w < 4; w++) {
+                                if (otherBase + w >= n) continue;
+                                Song sw = arr[otherBase + w];
+                                if (canSwapQuad(arr, base, base + v, sw, otherBase, otherBase + w, sv)) {
+                                    arr[base + v] = sw;
+                                    arr[otherBase + w] = sv;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean canSwapQuad(Song[] arr, int quad1Base, int idx1, Song newSong1, int quad2Base, int idx2, Song newSong2) {
+        for (int i = 0; i < 4; i++) {
+            if (quad1Base + i != idx1 && quad1Base + i < arr.length) {
+                if (sameArtist(arr[quad1Base + i], newSong1)) return false;
+            }
+        }
+        for (int i = 0; i < 4; i++) {
+            if (quad2Base + i != idx2 && quad2Base + i < arr.length) {
+                if (sameArtist(arr[quad2Base + i], newSong2)) return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean sameArtist(Song a, Song b) {
+        if (a == null || b == null) return false;
+        String artA = (a.getArtist() == null) ? "" : a.getArtist().trim().toLowerCase();
+        String artB = (b.getArtist() == null) ? "" : b.getArtist().trim().toLowerCase();
+        if (artA.isEmpty() || artB.isEmpty() || artA.equals("—") || artA.equals("-") || artA.equals("unknown")) return false;
+        return artA.equals(artB);
+    }
 }
+

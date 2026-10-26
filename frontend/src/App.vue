@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const API = '/api'
 const voterKey = getVoterKey()
@@ -22,6 +22,15 @@ const isSidebarCollapsed = ref(false)
 const seedingMode = ref('custom') // 'custom' (theo thứ tự sắp xếp) | 'shuffle' (ngẫu nhiên)
 const createTab = ref('input') // 'input' | 'preview'
 const initialOpenOption = ref('all') // 'all' | 'round1' | 'round1_2'
+
+// Vote pagination & filters
+const votePage = ref(1)
+const votePageSize = ref(8)
+const voteFilter = ref('all') // 'all' | 'unvoted' | 'voted' | 'completed'
+
+// Tree zoom & screen fit
+const treeScale = ref(0.7)
+const isTreeFitScreen = ref(true)
 
 // File upload ref
 const fileInput = ref(null)
@@ -65,6 +74,9 @@ async function openTournament(id) {
   try {
     tournament.value = await api(`/tournaments/${id}?voterKey=${encodeURIComponent(voterKey)}`)
     selectedRound.value = firstPendingRound()
+    votePage.value = 1
+    voteFilter.value = 'all'
+    autoFitTree()
     page.value = 'rounds'
     window.location.hash = `/tournament/${id}`
   } catch (e) { error.value = e.message }
@@ -137,13 +149,106 @@ const bracketStats = computed(() => {
   return { count, is48: false, size, byes, rounds }
 })
 
+function sameArtist(a, b) {
+  if (!a || !b) return false
+  const artA = (a.artist || '').trim().toLowerCase()
+  const artB = (b.artist || '').trim().toLowerCase()
+  if (!artA || !artB || artA === '—' || artA === '-' || artA === 'unknown') return false
+  return artA === artB
+}
+
+// Luật chia nhánh: Tách các bài hát cùng một nghệ sĩ (Vòng 64 & 32 không gặp nhau)
+function separateSongs(songList) {
+  if (!songList || songList.length < 4) return [...songList]
+  const n = songList.length
+  const byArtist = new Map()
+  const noArtist = []
+
+  songList.forEach(s => {
+    const art = s.artist ? s.artist.trim().toLowerCase() : ''
+    if (!art || art === '—' || art === '-' || art === 'unknown') {
+      noArtist.push(s)
+    } else {
+      if (!byArtist.has(art)) byArtist.set(art, [])
+      byArtist.get(art).push(s)
+    }
+  })
+
+  let hasMultiple = false
+  for (const list of byArtist.values()) {
+    if (list.length > 1) { hasMultiple = true; break }
+  }
+  if (!hasMultiple) return [...songList]
+
+  const groups = Array.from(byArtist.values()).sort((a, b) => b.length - a.length)
+  noArtist.forEach(s => groups.push([s]))
+
+  const distributed = []
+  let remaining = true
+  let round = 0
+  while (remaining) {
+    remaining = false
+    for (const g of groups) {
+      if (round < g.length) {
+        distributed.push(g[round])
+        remaining = true
+      }
+    }
+    round++
+  }
+
+  const numQuads = Math.max(1, Math.floor(n / 4))
+  const result = new Array(n)
+  const slotOrder = []
+  for (let q = 0; q < numQuads; q++) if (4 * q < n) slotOrder.push(4 * q)
+  for (let q = 0; q < numQuads; q++) if (4 * q + 2 < n) slotOrder.push(4 * q + 2)
+  for (let q = 0; q < numQuads; q++) if (4 * q + 1 < n) slotOrder.push(4 * q + 1)
+  for (let q = 0; q < numQuads; q++) if (4 * q + 3 < n) slotOrder.push(4 * q + 3)
+
+  for (let i = 0; i < distributed.length && i < slotOrder.length; i++) {
+    result[slotOrder[i]] = distributed[i]
+  }
+  let distIdx = slotOrder.length
+  for (let i = 0; i < n; i++) {
+    if (!result[i] && distIdx < distributed.length) {
+      result[i] = distributed[distIdx++]
+    }
+  }
+
+  // Conflict resolution
+  const matches = Math.floor(n / 2)
+  for (let i = 0; i < matches; i++) {
+    const a = result[2 * i]
+    const b = result[2 * i + 1]
+    if (sameArtist(a, b)) {
+      for (let j = 0; j < matches; j++) {
+        if (j === i) continue
+        const oA = result[2 * j]
+        const oB = result[2 * j + 1]
+        if (!sameArtist(a, oB) && !sameArtist(oA, b)) {
+          result[2 * i + 1] = oB
+          result[2 * j + 1] = b
+          break
+        }
+      }
+    }
+  }
+
+  return result.filter(Boolean)
+}
+
 // Preview of Initial Pairings (Bảng A & B khi 48 bài hoặc Cây chuẩn)
 const previewPairings = computed(() => {
-  const songs = [...parsedSongs.value]
+  let songs = [...parsedSongs.value]
   if (songs.length < 2) return []
   const count = songs.length
   const pairs = []
   let pos = 1
+
+  // Tự động bảo vệ tác giả ở Vòng 64 & 32
+  if (count === 64 || count === 32 || seedingMode.value === 'shuffle') {
+    songs = separateSongs(songs)
+  }
 
   if (count === 48) {
     // Chia 2 Bảng A và B: Mỗi bảng 24 bài (12 trận)
@@ -236,7 +341,7 @@ function shuffleSongList() {
     [lines[i], lines[j]] = [lines[j], lines[i]]
   }
   songText.value = lines.join('\n')
-  flash('Đã xáo trộn ngẫu nhiên toàn bộ danh sách bài hát! 🔀')
+  flash('Đã xáo trộn ngẫu nhiên! Luật phân tách cùng tác giả sẽ tự động áp dụng 🔀')
 }
 
 function handleFileUpload(event) {
@@ -742,7 +847,7 @@ const worldCupBracket = computed(() => {
   // Các vòng từ 0 đến numRounds - 2 chia 2 nửa: Trái & Phải
   for (let r = 0; r < numRounds - 1; r++) {
     const round = rounds[r]
-    const allMatches = round.matches.filter(m => m.songA || m.songB)
+    const allMatches = round.matches
     const mid = Math.ceil(allMatches.length / 2)
     const leftMatches = allMatches.slice(0, mid)
     const rightMatches = allMatches.slice(mid)
@@ -814,6 +919,98 @@ const worldCupBracket = computed(() => {
     centerRound: finalRound, // Chung kết nằm chính giữa
     rightColumns: [...rightColumns].reverse() // Đi từ Bán kết ➔ Tứ kết ➔ Vòng 1 (bên phải tiến vào giữa)
   }
+})
+
+// Artwork & Thumbnail helpers (Hỗ trợ ảnh YouTube và Logo Web)
+function extractYoutubeId(url) {
+  if (!url) return null
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/i
+  const match = url.match(regExp)
+  return match && match[1] ? match[1] : null
+}
+
+function getSongArtwork(song) {
+  if (!song) return '/logo.png'
+  if (song.artwork) return song.artwork
+  const ytId = extractYoutubeId(song.link)
+  if (ytId) {
+    return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+  }
+  return '/logo.png'
+}
+
+function handleImgError(e) {
+  if (e && e.target) {
+    e.target.src = '/logo.png'
+  }
+}
+
+// Tree view zoom & fit
+function setTreeZoom(delta) {
+  isTreeFitScreen.value = false
+  treeScale.value = Math.max(0.35, Math.min(1.5, Number((treeScale.value + delta).toFixed(2))))
+}
+
+function resetTreeZoom() {
+  isTreeFitScreen.value = false
+  treeScale.value = 1.0
+}
+
+function toggleFitScreen() {
+  isTreeFitScreen.value = !isTreeFitScreen.value
+  if (isTreeFitScreen.value) {
+    autoFitTree()
+  } else {
+    treeScale.value = 1.0
+  }
+}
+
+function autoFitTree() {
+  const total = tournament.value?.songs?.length || 32
+  if (total >= 64) treeScale.value = 0.58
+  else if (total >= 48) treeScale.value = 0.65
+  else if (total >= 32) treeScale.value = 0.75
+  else treeScale.value = 0.90
+}
+
+// Vote pagination & filters
+const activeRoundMatches = computed(() => {
+  if (!currentRound.value) return []
+  return currentRound.value.matches.filter(m => m.songA || m.songB)
+})
+
+const filteredRoundMatches = computed(() => {
+  const matches = activeRoundMatches.value
+  if (voteFilter.value === 'unvoted') {
+    return matches.filter(m => !m.hasVoted && !m.winner && !m.closed)
+  }
+  if (voteFilter.value === 'voted') {
+    return matches.filter(m => m.hasVoted)
+  }
+  if (voteFilter.value === 'completed') {
+    return matches.filter(m => !!m.winner)
+  }
+  return matches
+})
+
+const totalVotePages = computed(() => {
+  return Math.max(1, Math.ceil(filteredRoundMatches.value.length / votePageSize.value))
+})
+
+const paginatedMatches = computed(() => {
+  const start = (votePage.value - 1) * votePageSize.value
+  return filteredRoundMatches.value.slice(start, start + votePageSize.value)
+})
+
+function setVotePage(p) {
+  if (p >= 1 && p <= totalVotePages.value) {
+    votePage.value = p
+  }
+}
+
+watch(selectedRound, () => {
+  votePage.value = 1
+  voteFilter.value = 'all'
 })
 
 // Polling interval
@@ -960,7 +1157,9 @@ onUnmounted(() => {
               <div v-if="searchResults.length > 0" class="search-results-panel">
                 <div class="results-toolbar">
                   <span>Tìm thấy <b>{{ filteredSearchResults.length }}</b> bài hát:</span>
-                  <button class="btn mini-btn primary" @click="addAllSearchResults">＋ Thêm tất cả vào danh sách</button>
+                  <button class="btn add-all-songs-btn" @click="addAllSearchResults" title="Thêm tất cả các bài trong kết quả tìm kiếm vào danh sách thi đấu">
+                    ➕ Thêm tất cả ({{ filteredSearchResults.length }} bài)
+                  </button>
                 </div>
 
                 <div class="search-cards-grid">
@@ -984,8 +1183,8 @@ onUnmounted(() => {
                       <a :href="item.youtubeUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn yt-action-btn" title="Tìm trên YouTube">
                         🔴 YouTube
                       </a>
-                      <button class="btn mini-btn primary add-song-btn" @click="addSongFromSearch(item)" title="Thêm bài này vào danh sách giải đấu">
-                        ＋ Thêm
+                      <button class="btn add-song-btn" @click="addSongFromSearch(item)" title="Thêm bài này vào danh sách giải đấu">
+                        ➕ Thêm bài
                       </button>
                     </div>
                   </div>
@@ -1044,16 +1243,31 @@ onUnmounted(() => {
               <button class="btn soft" @click="shuffleSongList">🔀 Xáo trộn ngẫu nhiên</button>
             </div>
 
+            <!-- Artist Protection Rule Notification -->
+            <div class="artist-rule-alert">
+              <span>🛡</span>
+              <div>
+                <b>Luật bảo vệ tác giả tự động:</b>
+                <span> Ở Vòng 64 & Vòng 32, các bài hát cùng một tác giả sẽ không gặp nhau để tạo sự công bằng cao nhất.</span>
+              </div>
+            </div>
+
             <div class="preview-pairings-list">
-              <div v-for="pair in previewPairings" :key="pair.num" class="preview-pair-card" :class="{byeCard:pair.isBye}">
+              <div v-for="pair in previewPairings" :key="pair.num" class="preview-pair-card" :class="{byeCard:pair.isBye, sameArtistCard: pair.songA && pair.songB && sameArtist(pair.songA, pair.songB)}">
                 <div class="pair-tag">
                   <span>{{ pair.roundLabel ? pair.roundLabel + ' · ' : '' }}TRẬN {{ pair.num }}</span>
                   <span v-if="pair.isBye" class="bye-label">Vé vào thẳng vòng sau</span>
+                  <span v-if="pair.songA && pair.songB && sameArtist(pair.songA, pair.songB)" class="pair-same-artist-warn">
+                    ⚠️ Trùng tác giả: {{ pair.songA.artist }}
+                  </span>
                 </div>
                 
                 <!-- Song A -->
                 <div class="pair-song-row">
                   <span class="seed-num">#{{ pair.indexA + 1 }}</span>
+                  <div class="pair-song-thumb">
+                    <img :src="getSongArtwork(pair.songA)" :alt="pair.songA?.title" class="pair-thumb-img" @error="handleImgError($event)">
+                  </div>
                   <div class="pair-song-info">
                     <b>{{ pair.songA?.title }}</b>
                     <small>{{ pair.songA?.artist || '—' }}</small>
@@ -1069,6 +1283,9 @@ onUnmounted(() => {
                 <!-- Song B -->
                 <div v-if="!pair.isBye && pair.songB" class="pair-song-row">
                   <span class="seed-num">#{{ pair.indexB + 1 }}</span>
+                  <div class="pair-song-thumb">
+                    <img :src="getSongArtwork(pair.songB)" :alt="pair.songB?.title" class="pair-thumb-img" @error="handleImgError($event)">
+                  </div>
                   <div class="pair-song-info">
                     <b>{{ pair.songB?.title }}</b>
                     <small>{{ pair.songB?.artist || '—' }}</small>
@@ -1118,7 +1335,9 @@ onUnmounted(() => {
         <div v-else class="song-grid">
           <div v-for="(song,i) in tournament.songs" :key="song.id" class="library-song">
             <span class="song-index">{{ String(i+1).padStart(2,'0') }}</span>
-            <span class="album small-album">♫</span>
+            <div class="song-cover-box" style="width:34px;height:34px;border-radius:4px;flex-shrink:0;">
+              <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
+            </div>
             <div><b>{{ song.title }}</b><small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small></div>
             <button v-if="song.link" @click="playSong(song)" class="btn song-link-btn" :class="{spotifyBtn: isSpotifyLink(song.link)}" :title="isSpotifyLink(song.link) ? 'Nghe thử trên Spotify' : 'Nghe thử bài này'">
               {{ isSpotifyLink(song.link) ? '🟢 Nghe thử' : '▶ Nghe thử' }}
@@ -1228,8 +1447,45 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <!-- Vote Filter & Pagination Toolbar -->
+            <div class="vote-pagination-toolbar">
+              <div class="vote-filter-tabs">
+                <button class="vote-filter-btn" :class="{active: voteFilter==='all'}" @click="voteFilter='all'; votePage=1">
+                  Tất cả ({{ activeRoundMatches.length }})
+                </button>
+                <button class="vote-filter-btn" :class="{active: voteFilter==='unvoted'}" @click="voteFilter='unvoted'; votePage=1">
+                  ⏳ Chưa bình chọn ({{ activeRoundMatches.filter(m => !m.hasVoted && !m.winner && !m.closed).length }})
+                </button>
+                <button class="vote-filter-btn" :class="{active: voteFilter==='voted'}" @click="voteFilter='voted'; votePage=1">
+                  ✓ Đã vote ({{ activeRoundMatches.filter(m => m.hasVoted).length }})
+                </button>
+                <button class="vote-filter-btn" :class="{active: voteFilter==='completed'}" @click="voteFilter='completed'; votePage=1">
+                  🏆 Có kết quả ({{ activeRoundMatches.filter(m => !!m.winner).length }})
+                </button>
+              </div>
+
+              <div class="vote-pages-control" v-if="totalVotePages > 1">
+                <span class="pagination-info">
+                  Trang <b>{{ votePage }}</b> / {{ totalVotePages }}
+                </span>
+                <div class="pagination-btn-group">
+                  <button class="page-nav-btn" :disabled="votePage <= 1" @click="setVotePage(votePage - 1)">‹ Trước</button>
+                  <button 
+                    v-for="p in totalVotePages" 
+                    :key="p" 
+                    class="page-num-btn" 
+                    :class="{active: votePage === p}"
+                    @click="setVotePage(p)"
+                  >
+                    {{ p }}
+                  </button>
+                  <button class="page-nav-btn" :disabled="votePage >= totalVotePages" @click="setVotePage(votePage + 1)">Sau ›</button>
+                </div>
+              </div>
+            </div>
+
             <div v-if="currentRound" class="match-grid">
-              <article v-for="match in currentRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="match-card" :class="{matchLocked:match.closed}">
+              <article v-for="match in paginatedMatches" :key="match.id" class="match-card" :class="{matchLocked:match.closed}">
                 <div class="match-top">
                   <span>TRẬN {{ match.position+1 }}</span>
                   <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Vé đặc cách</span>
@@ -1239,7 +1495,9 @@ onUnmounted(() => {
                 </div>
                 <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                   <template v-if="song">
-                    <span class="song-cover">♫</span>
+                    <div class="song-cover-box" :title="song.title + ' — ' + (song.artist || '')">
+                      <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
+                    </div>
                     <div class="song-meta">
                       <b>{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách Wildcard">⭐</span></b>
                       <small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small>
@@ -1261,17 +1519,52 @@ onUnmounted(() => {
                 <div v-else-if="match.bye" class="match-foot">Tự động vào vòng tiếp theo</div>
               </article>
             </div>
+
+            <!-- Bottom Pagination -->
+            <div class="vote-pagination-bottom" v-if="totalVotePages > 1">
+              <span class="pagination-info">
+                Hiển thị trận {{ (votePage - 1) * votePageSize + 1 }} - {{ Math.min(votePage * votePageSize, filteredRoundMatches.length) }} trên tổng số {{ filteredRoundMatches.length }} trận
+              </span>
+              <div class="pagination-btn-group">
+                <button class="page-nav-btn" :disabled="votePage <= 1" @click="setVotePage(votePage - 1)">‹ Trước</button>
+                <button 
+                  v-for="p in totalVotePages" 
+                  :key="p" 
+                  class="page-num-btn" 
+                  :class="{active: votePage === p}"
+                  @click="setVotePage(p)"
+                >
+                  {{ p }}
+                </button>
+                <button class="page-nav-btn" :disabled="votePage >= totalVotePages" @click="setVotePage(votePage + 1)">Sau ›</button>
+              </div>
+            </div>
           </div>
 
           <!-- MODE 2: BRACKET TREE VIEW (WORLD CUP 2-WING BRACKET) -->
           <div v-else class="bracket-tree-wrapper world-cup-stadium">
             <div class="stadium-header">
-              <span class="stadium-badge">NHÁNH THI ĐẤU</span>
-              <h3 class="stadium-title">{{ tournament.name.toUpperCase() }}</h3>
+              <div class="stadium-titles">
+                <span class="stadium-badge">NHÁNH THI ĐẤU QUỐC TẾ</span>
+                <h3 class="stadium-title">{{ tournament.name.toUpperCase() }}</h3>
+              </div>
+              <div class="tree-controls-bar">
+                <button class="tree-zoom-btn fit-btn" :class="{active: isTreeFitScreen}" @click="toggleFitScreen" title="Tự động thu phóng để khớp toàn bộ sơ đồ với màn hình">
+                  ⛶ Khớp màn hình
+                </button>
+                <div class="zoom-stepper">
+                  <button class="tree-zoom-btn mini" @click="setTreeZoom(-0.1)" title="Thu nhỏ sơ đồ">🔍−</button>
+                  <span class="zoom-percent-val">{{ Math.round(treeScale * 100) }}%</span>
+                  <button class="tree-zoom-btn mini" @click="setTreeZoom(0.1)" title="Phóng to sơ đồ">🔍＋</button>
+                </div>
+                <button class="tree-zoom-btn reset-btn" @click="resetTreeZoom" title="Đặt lại kích thước chuẩn 100%">
+                  100%
+                </button>
+              </div>
               <div class="stadium-glow"></div>
             </div>
 
-            <div class="bracket-tree-scroll world-cup-tree">
+            <div class="bracket-tree-scroll world-cup-tree" :style="{ transform: 'scale(' + treeScale + ')', transformOrigin: 'top center' }">
               <!-- CÁNH TRÁI (LEFT WING) -->
               <div class="bracket-wing left-wing">
                 <div v-for="col in worldCupBracket.leftColumns" :key="'left-'+col.roundIndex" class="tree-round-column">
@@ -1293,6 +1586,9 @@ onUnmounted(() => {
                       </div>
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
+                          <div class="tree-song-thumb" :title="song.title">
+                            <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
+                          </div>
                           <div class="tree-song-text">
                             <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
@@ -1331,7 +1627,7 @@ onUnmounted(() => {
                   </div>
 
                   <div class="center-final-matches">
-                    <div v-for="match in worldCupBracket.centerRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="tree-match-card final-glow-card" :class="{treeMatchLocked:match.closed}">
+                    <div v-for="match in worldCupBracket.centerRound.matches" :key="match.id" class="tree-match-card final-glow-card" :class="{treeMatchLocked:match.closed}">
                       <div class="tree-match-header final-header-bar">
                         <span>TRẬN TRANH CÚP VÀNG</span>
                         <span v-if="match.winner" class="mini-status won">🏆 QUÁN QUÂN: {{ match.winner.title }}</span>
@@ -1340,6 +1636,9 @@ onUnmounted(() => {
                       </div>
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
+                          <div class="tree-song-thumb" :title="song.title">
+                            <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
+                          </div>
                           <div class="tree-song-text">
                             <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
@@ -1382,6 +1681,9 @@ onUnmounted(() => {
                       </div>
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
+                          <div class="tree-song-thumb" :title="song.title">
+                            <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
+                          </div>
                           <div class="tree-song-text">
                             <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>

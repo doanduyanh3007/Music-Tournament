@@ -628,6 +628,114 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .round-tabs button.active small { color: #c7d2fe; }
 
+/* ─── Vote Filter & Pagination Toolbar ─── */
+.vote-pagination-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+.vote-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.vote-filter-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 999px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.vote-filter-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.vote-filter-btn.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4338ca;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+.vote-pages-control,
+.vote-pagination-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.vote-pagination-bottom {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+.pagination-info {
+  font-size: 11px;
+  color: #64748b;
+}
+.pagination-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-nav-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  cursor: pointer;
+}
+.page-nav-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.page-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.page-num-btn {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-num-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.page-num-btn.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4338ca;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
+}
+
 /* ─── Match Grid ─── */
 .match-grid {
   display: grid;
@@ -691,6 +799,28 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .match-song.mutedSong {
   opacity: 0.5;
+}
+.song-cover-box {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #1e1e36;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.song-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+.match-song:hover .song-cover-img {
+  transform: scale(1.08);
 }
 .song-cover {
   width: 34px;
@@ -1049,11 +1179,20 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   position: relative;
 }
 .stadium-header {
-  text-align: center;
-  padding: 14px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   position: relative;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stadium-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .stadium-badge {
   display: inline-block;
@@ -1067,21 +1206,71 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   text-transform: uppercase;
 }
 .stadium-title {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: #0f172a;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.5px;
+}
+.tree-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.tree-zoom-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tree-zoom-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.tree-zoom-btn.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4338ca;
+}
+.zoom-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tree-zoom-btn.mini {
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.zoom-percent-val {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: center;
+  color: #475569;
 }
 .bracket-tree-scroll.world-cup-tree {
   display: flex;
   justify-content: flex-start;
   align-items: stretch;
   overflow-x: auto;
+  overflow-y: auto;
   padding: 16px 12px 24px;
   gap: 12px;
   min-height: 480px;
   background: #fafbfc;
+  transform-origin: top center;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .bracket-wing {
   display: flex;
@@ -1229,6 +1418,23 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .tree-match-song.mutedSong {
   opacity: 0.45;
+}
+.tree-song-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #1e1e36;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tree-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .tree-song-text {
   flex: 1;
@@ -2332,9 +2538,88 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   color: #fff;
 }
 .add-song-btn {
-  padding: 3px 8px;
-  font-size: 10px;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #3730a3 !important;
+  padding: 4px 9px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 4px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.25) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.add-song-btn:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #312e81 100%) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.35) !important;
+}
+.add-song-btn:active {
+  transform: translateY(0) !important;
+}
+.add-all-songs-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #3730a3 !important;
+  font-weight: 700 !important;
+  font-size: 11.5px !important;
+  padding: 5px 12px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 5px rgba(79, 70, 229, 0.25) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.add-all-songs-btn:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #312e81 100%) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+.artist-rule-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 14px;
+  font-size: 11.5px;
+}
+.artist-rule-alert span:first-child {
+  font-size: 16px;
+}
+.pair-same-artist-warn {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  font-size: 9px;
   font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+.pair-song-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #1e1e36;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pair-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ─── Grand Champion Celebration Stage (Spectacular Final UI) ─── */
