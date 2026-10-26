@@ -981,34 +981,133 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-/* ─── Bracket Tree Diagram ─── */
-.bracket-tree-wrapper {
+/* ─── World Cup Stadium Bracket Tree Diagram (2-Wing Dual Bracket) ─── */
+.bracket-tree-wrapper.world-cup-stadium {
   margin-top: 16px;
-  border: 1px solid var(--line);
+  border: 2px solid #15803d;
   border-radius: var(--radius);
-  background: #f8fafc;
+  background: radial-gradient(circle at center, #166534 0%, #14532d 40%, #052e16 100%);
   overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(5, 46, 22, 0.4);
+  position: relative;
 }
-.bracket-tree-scroll {
+.stadium-header {
+  text-align: center;
+  padding: 18px 16px 10px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+.stadium-badge {
+  display: inline-block;
+  background: #facc15;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+.stadium-title {
+  margin: 6px 0 0;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+.bracket-tree-scroll.world-cup-tree {
   display: flex;
+  justify-content: center;
+  align-items: stretch;
   overflow-x: auto;
-  padding: 24px 16px;
-  gap: 28px;
-  min-height: 480px;
-  scroll-behavior: smooth;
+  padding: 24px 20px 32px;
+  gap: 20px;
+  min-height: 540px;
+}
+.bracket-wing {
+  display: flex;
+  gap: 18px;
+}
+.left-wing {
+  flex-direction: row;
+}
+.right-wing {
+  flex-direction: row;
+}
+.bracket-center-podium {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  position: relative;
+}
+.cup-trophy-display {
+  text-align: center;
+  margin-bottom: 16px;
+  animation: float-cup 3s ease-in-out infinite;
+}
+@keyframes float-cup {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.gold-trophy-icon {
+  font-size: 56px;
+  filter: drop-shadow(0 0 20px rgba(250, 204, 21, 0.8));
+}
+.trophy-ribbon {
+  background: linear-gradient(90deg, #f59e0b, #facc15, #f59e0b);
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.center-final-card {
+  width: 100%;
+}
+.gold-header {
+  background: linear-gradient(135deg, #fef08a, #fde047) !important;
+  border: 1px solid #eab308 !important;
+}
+.gold-header h4 {
+  color: #713f12 !important;
+  font-size: 14px;
+}
+.final-glow-card {
+  background: #ffffff !important;
+  border: 2px solid #eab308 !important;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4) !important;
+}
+.final-header-bar {
+  background: #fef9c3 !important;
+  color: #854d0e !important;
+  font-weight: 800;
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+.final-song-row {
+  padding: 8px 10px !important;
 }
 .tree-round-column {
-  flex: 0 0 260px;
+  flex: 0 0 240px;
   display: flex;
   flex-direction: column;
 }
 .tree-round-header {
   text-align: center;
   padding: 8px 12px;
-  background: #ffffff;
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: var(--radius-sm);
   margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .tree-round-header h4 {
   font-size: 13px;
@@ -1029,10 +1128,10 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .tree-match-card {
   background: #ffffff;
-  border: 1px solid var(--line);
+  border: 1px solid #e2e8f0;
   border-radius: var(--radius-sm);
   padding: 8px 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
   position: relative;
 }
 .tree-match-header {

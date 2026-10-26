@@ -126,28 +126,71 @@ const parsedSongs = computed(() => {
 const bracketStats = computed(() => {
   const count = parsedSongs.value.length
   if (count < 2) return null
+  if (count > 48) {
+    const half1 = Math.floor(count / 2)
+    const half2 = count - half1
+    const matchesRound1 = Math.ceil(half1 / 2)
+    const matchesRound2 = Math.ceil(half2 / 2)
+    return { count, isSplit: true, half1, half2, matchesRound1, matchesRound2 }
+  }
   let size = 1
   while (size < count) size *= 2
   const byes = size - count
   const rounds = Math.log2(size)
-  return { count, size, byes, rounds }
+  return { count, isSplit: false, size, byes, rounds }
 })
 
-// Preview of Round 1 Pairings
+// Preview of Initial Pairings (Vòng 1 hoặc Vòng loại 1 & 2)
 const previewPairings = computed(() => {
   const songs = [...parsedSongs.value]
   if (songs.length < 2) return []
   const count = songs.length
+  const pairs = []
+  let pos = 1
+
+  if (count > 48) {
+    // Chia 2 vòng loại
+    const half1 = Math.floor(count / 2)
+    const group1 = songs.slice(0, half1)
+    const group2 = songs.slice(half1)
+
+    // Nhóm 1: Vòng loại 1
+    for (let i = 0; i < group1.length; i += 2) {
+      pairs.push({
+        num: pos++,
+        roundLabel: 'Vòng loại 1',
+        songA: group1[i],
+        songB: i + 1 < group1.length ? group1[i + 1] : null,
+        isBye: i + 1 >= group1.length,
+        indexA: i,
+        indexB: i + 1 < group1.length ? i + 1 : -1
+      })
+    }
+    // Nhóm 2: Vòng loại 2
+    for (let i = 0; i < group2.length; i += 2) {
+      pairs.push({
+        num: pos++,
+        roundLabel: 'Vòng loại 2',
+        songA: group2[i],
+        songB: i + 1 < group2.length ? group2[i + 1] : null,
+        isBye: i + 1 >= group2.length,
+        indexA: half1 + i,
+        indexB: i + 1 < group2.length ? half1 + i + 1 : -1
+      })
+    }
+    return pairs
+  }
+
+  // Chuẩn <= 48 bài
   let size = 1
   while (size < count) size *= 2
   const byes = size - count
-  const pairs = []
-  let pos = 1
 
   // Bye matches
   for (let i = 0; i < byes; i++) {
     pairs.push({
       num: pos++,
+      roundLabel: 'Vòng 1',
       songA: songs[i],
       songB: null,
       isBye: true,
@@ -160,6 +203,7 @@ const previewPairings = computed(() => {
   for (let i = byes; i < count; i += 2) {
     pairs.push({
       num: pos++,
+      roundLabel: 'Vòng 1',
       songA: songs[i],
       songB: i + 1 < count ? songs[i + 1] : null,
       isBye: false,
@@ -451,6 +495,54 @@ const completedMatches = computed(() => (tournament.value?.rounds || []).flatMap
 const totalMatches = computed(() => (tournament.value?.rounds || []).flatMap(r => r.matches).filter(m => m.songA && m.songB).length)
 const progress = computed(() => totalMatches.value ? Math.round(completedMatches.value / totalMatches.value * 100) : 0)
 
+// World Cup style two-sided Bracket Layout (Nhánh Trái ➔ Chung kết ở Giữa ➔ Nhánh Phải)
+const worldCupBracket = computed(() => {
+  const rounds = tournament.value?.rounds || []
+  if (!rounds.length) return null
+  const numRounds = rounds.length
+  if (numRounds < 2) {
+    return { isSplit: false, rounds }
+  }
+
+  const finalRound = rounds[numRounds - 1]
+  const leftColumns = []
+  const rightColumns = []
+
+  // Các vòng từ 0 đến numRounds - 2 chia 2 nửa: Trái (A) & Phải (B)
+  for (let r = 0; r < numRounds - 1; r++) {
+    const round = rounds[r]
+    const allMatches = round.matches.filter(m => m.songA || m.songB)
+    const mid = Math.ceil(allMatches.length / 2)
+    const leftMatches = allMatches.slice(0, mid)
+    const rightMatches = allMatches.slice(mid)
+
+    leftColumns.push({
+      roundIndex: round.index,
+      name: round.name,
+      closed: round.closed,
+      completed: round.completed,
+      matches: leftMatches,
+      side: 'left'
+    })
+
+    rightColumns.push({
+      roundIndex: round.index,
+      name: round.name,
+      closed: round.closed,
+      completed: round.completed,
+      matches: rightMatches,
+      side: 'right'
+    })
+  }
+
+  return {
+    isSplit: true,
+    leftColumns, // Đi từ Vòng 1 ➔ Tứ kết ➔ Bán kết (bên trái)
+    centerRound: finalRound, // Chung kết nằm chính giữa
+    rightColumns: [...rightColumns].reverse() // Đi từ Bán kết ➔ Tứ kết ➔ Vòng 1 (bên phải tiến vào giữa)
+  }
+})
+
 // Polling interval
 let liveTimer = null
 
@@ -540,8 +632,13 @@ onUnmounted(() => {
 
             <label class="textarea-label">
               <span>Danh sách bài hát <span class="muted small">(mỗi dòng 1 bài: Tên — Nghệ sĩ | link YouTube/Spotify hoặc copy từ Excel)</span></span>
-              <span v-if="bracketStats" class="bracket-badge" :class="{perfect:bracketStats.byes===0}">
-                {{ bracketStats.count }} bài ➔ Nhánh {{ bracketStats.size }} ({{ bracketStats.byes === 0 ? 'Chuẩn nhánh, 0 vé vào thẳng' : bracketStats.byes + ' vé vào thẳng' }})
+              <span v-if="bracketStats" class="bracket-badge" :class="{perfect:!bracketStats.isSplit && bracketStats.byes===0}">
+                <template v-if="bracketStats.isSplit">
+                  ⚡ {{ bracketStats.count }} bài (>48 bài) ➔ Tự động chia 2 vòng: Vòng loại 1 ({{ bracketStats.half1 }} bài/{{ bracketStats.matchesRound1 }} trận) & Vòng loại 2 ({{ bracketStats.half2 }} bài/{{ bracketStats.matchesRound2 }} trận)
+                </template>
+                <template v-else>
+                  {{ bracketStats.count }} bài ➔ Nhánh {{ bracketStats.size }} ({{ bracketStats.byes === 0 ? 'Chuẩn nhánh, 0 vé vào thẳng' : bracketStats.byes + ' vé vào thẳng' }})
+                </template>
               </span>
             </label>
             <textarea v-model="songText" rows="9" placeholder="Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg&#10;Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00&#10;Blue Bird — Ikimono-gakari&#10;Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ"></textarea>
@@ -578,7 +675,7 @@ onUnmounted(() => {
           <div v-else class="preview-pairing-view">
             <div class="preview-head">
               <div>
-                <h4>Điều chỉnh thứ tự & Cặp đấu Vòng 1</h4>
+                <h4>Điều chỉnh thứ tự & Cặp đấu</h4>
                 <p class="muted small">Bạn có thể bấm ⬆ ⬇ để di chuyển bài hát và sắp xếp cặp đấu như ý muốn trước khi tạo giải.</p>
               </div>
               <button class="btn soft" @click="shuffleSongList">🔀 Xáo trộn ngẫu nhiên</button>
@@ -587,8 +684,8 @@ onUnmounted(() => {
             <div class="preview-pairings-list">
               <div v-for="pair in previewPairings" :key="pair.num" class="preview-pair-card" :class="{byeCard:pair.isBye}">
                 <div class="pair-tag">
-                  <span>TRẬN {{ pair.num }}</span>
-                  <span v-if="pair.isBye" class="bye-label">Vé vào thẳng vòng 2</span>
+                  <span>{{ pair.roundLabel ? pair.roundLabel + ' · ' : '' }}TRẬN {{ pair.num }}</span>
+                  <span v-if="pair.isBye" class="bye-label">Vé vào thẳng vòng sau</span>
                 </div>
                 
                 <!-- Song A -->
@@ -775,46 +872,144 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- MODE 2: BRACKET TREE VIEW -->
-          <div v-else class="bracket-tree-wrapper">
-            <div class="bracket-tree-scroll">
-              <div v-for="round in tournament.rounds" :key="round.index" class="tree-round-column">
-                <div class="tree-round-header" :class="{treeHeaderClosed:round.closed}">
-                  <h4>{{ round.name }}</h4>
-                  <small>{{ round.completed ? '🏆 Hoàn thành' : (round.closed ? '🔒 Đã đóng' : '🔓 Đang mở vote') }}</small>
-                  <button class="tree-toggle-round-btn" @click="toggleRoundVoting(round.index, round.closed)">
-                    {{ round.closed ? '🔓 Mở' : '🔒 Đóng' }}
-                  </button>
-                </div>
-                <div class="tree-round-matches">
-                  <div v-for="match in round.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
-                    <div class="tree-match-header">
-                      <span>#{{ match.position + 1 }}</span>
-                      <span v-if="match.winner" class="mini-status won">✓ Xong</span>
-                      <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
-                      <span v-else class="mini-status live">Vote</span>
-                    </div>
-                    <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
-                      <template v-if="song">
-                        <div class="tree-song-text">
-                          <b :title="song.title">{{ song.title }}</b>
-                          <small :title="song.artist">{{ song.artist || '—' }}</small>
-                        </div>
-                        <div class="tree-song-actions">
-                          <button v-if="song.link" class="tree-play-btn" :class="{spotifyTreeBtn: isSpotifyLink(song.link)}" @click="playSong(song)" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
-                            {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
-                          </button>
-                          <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
-                          <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                            {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
-                          </button>
-                        </div>
-                      </template>
-                      <div v-else class="tree-tbd">Chờ vòng trước…</div>
+          <!-- MODE 2: BRACKET TREE VIEW (WORLD CUP 2-WING BRACKET) -->
+          <div v-else class="bracket-tree-wrapper world-cup-stadium">
+            <div class="stadium-header">
+              <span class="stadium-badge">NHÁNH THI ĐẤU</span>
+              <h3 class="stadium-title">{{ tournament.name.toUpperCase() }}</h3>
+              <div class="stadium-glow"></div>
+            </div>
+
+            <div class="bracket-tree-scroll world-cup-tree">
+              <!-- CÁNH TRÁI (LEFT WING) -->
+              <div class="bracket-wing left-wing">
+                <div v-for="col in worldCupBracket.leftColumns" :key="'left-'+col.roundIndex" class="tree-round-column">
+                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed}">
+                    <h4>{{ col.name }}</h4>
+                    <small>{{ col.completed ? '🏆 Xong' : (col.closed ? '🔒 Đóng' : '🔓 Đang mở') }}</small>
+                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
+                      {{ col.closed ? '🔓 Mở' : '🔒 Đóng' }}
+                    </button>
+                  </div>
+                  <div class="tree-round-matches">
+                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
+                      <div class="tree-match-header">
+                        <span>#{{ match.position + 1 }}</span>
+                        <span v-if="match.winner" class="mini-status won">✓ Xong</span>
+                        <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
+                        <span v-else class="mini-status live">Vote</span>
+                      </div>
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                        <template v-if="song">
+                          <div class="tree-song-text">
+                            <b :title="song.title">{{ song.title }}</b>
+                            <small :title="song.artist">{{ song.artist || '—' }}</small>
+                          </div>
+                          <div class="tree-song-actions">
+                            <button v-if="song.link" class="tree-play-btn" :class="{spotifyTreeBtn: isSpotifyLink(song.link)}" @click="playSong(song)" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                              {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
+                            </button>
+                            <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
+                            <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
+                              {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
+                            </button>
+                          </div>
+                        </template>
+                        <div v-else class="tree-tbd">Chờ vòng trước…</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              <!-- CHÍNH GIỮA: TRẬN CHUNG KẾT & CÚP VÀNG (CENTER TROPHY & FINAL MATCH) -->
+              <div class="bracket-center-podium">
+                <div class="cup-trophy-display">
+                  <div class="gold-trophy-icon">🏆</div>
+                  <div class="trophy-ribbon">CHUNG KẾT VÔ ĐỊCH</div>
+                </div>
+
+                <div v-if="worldCupBracket.centerRound" class="center-final-card">
+                  <div class="tree-round-header gold-header">
+                    <h4>{{ worldCupBracket.centerRound.name }}</h4>
+                    <small>{{ worldCupBracket.centerRound.completed ? '🏆 Đã tìm ra quán quân' : (worldCupBracket.centerRound.closed ? '🔒 Đã đóng' : '🔓 Đang tranh cúp') }}</small>
+                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(worldCupBracket.centerRound.index, worldCupBracket.centerRound.closed)">
+                      {{ worldCupBracket.centerRound.closed ? '🔓 Mở vote' : '🔒 Đóng vote' }}
+                    </button>
+                  </div>
+
+                  <div class="center-final-matches">
+                    <div v-for="match in worldCupBracket.centerRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="tree-match-card final-glow-card" :class="{treeMatchLocked:match.closed}">
+                      <div class="tree-match-header final-header-bar">
+                        <span>TRẬN TRANH CÚP VÀNG</span>
+                        <span v-if="match.winner" class="mini-status won">🏆 QUÁN QUÂN: {{ match.winner.title }}</span>
+                        <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng vote</span>
+                        <span v-else class="mini-status live">● ĐANG BÌNH CHỌN</span>
+                      </div>
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                        <template v-if="song">
+                          <div class="tree-song-text">
+                            <b :title="song.title">{{ song.title }}</b>
+                            <small :title="song.artist">{{ song.artist || '—' }}</small>
+                          </div>
+                          <div class="tree-song-actions">
+                            <button v-if="song.link" class="tree-play-btn" :class="{spotifyTreeBtn: isSpotifyLink(song.link)}" @click="playSong(song)" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                              {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
+                            </button>
+                            <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
+                            <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
+                              {{ match.winner?.id===song.id ? '✓ VÔ ĐỊCH' : 'Vote' }}
+                            </button>
+                          </div>
+                        </template>
+                        <div v-else class="tree-tbd">Đang đợi đối thủ vào Chung kết…</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CÁNH PHẢI (RIGHT WING) -->
+              <div class="bracket-wing right-wing">
+                <div v-for="col in worldCupBracket.rightColumns" :key="'right-'+col.roundIndex" class="tree-round-column">
+                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed}">
+                    <h4>{{ col.name }}</h4>
+                    <small>{{ col.completed ? '🏆 Xong' : (col.closed ? '🔒 Đóng' : '🔓 Đang mở') }}</small>
+                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
+                      {{ col.closed ? '🔓 Mở' : '🔒 Đóng' }}
+                    </button>
+                  </div>
+                  <div class="tree-round-matches">
+                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
+                      <div class="tree-match-header">
+                        <span>#{{ match.position + 1 }}</span>
+                        <span v-if="match.winner" class="mini-status won">✓ Xong</span>
+                        <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
+                        <span v-else class="mini-status live">Vote</span>
+                      </div>
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                        <template v-if="song">
+                          <div class="tree-song-text">
+                            <b :title="song.title">{{ song.title }}</b>
+                            <small :title="song.artist">{{ song.artist || '—' }}</small>
+                          </div>
+                          <div class="tree-song-actions">
+                            <button v-if="song.link" class="tree-play-btn" :class="{spotifyTreeBtn: isSpotifyLink(song.link)}" @click="playSong(song)" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                              {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
+                            </button>
+                            <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
+                            <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
+                              {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
+                            </button>
+                          </div>
+                        </template>
+                        <div v-else class="tree-tbd">Chờ vòng trước…</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 

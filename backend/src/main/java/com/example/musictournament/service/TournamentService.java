@@ -57,32 +57,78 @@ public class TournamentService {
         // High-speed batch insert
         List<Song> entrants = songs.saveAll(songEntities);
 
-        int size = 1; while (size < entrants.size()) size *= 2;
-        int byes = size - entrants.size();
-
         if (request.shouldShuffle()) {
             Collections.shuffle(entrants);
         }
 
         List<TournamentMatch> matchesToSave = new ArrayList<>();
-        int pos = 0;
-        for (int i = 0; i < byes; i++) {
-            TournamentMatch m = new TournamentMatch(t, 0, pos++, entrants.get(i), null);
-            m.setWinner(entrants.get(i));
-            matchesToSave.add(m);
-        }
-        for (int i = byes; i < entrants.size(); i += 2) {
-            Song a = entrants.get(i), b = (i + 1 < entrants.size() ? entrants.get(i + 1) : null);
-            TournamentMatch m = new TournamentMatch(t, 0, pos++, a, b);
-            if (b == null) m.setWinner(a);
-            matchesToSave.add(m);
-        }
-        int count = size / 4, round = 1;
-        while (count >= 1) {
-            for (int i = 0; i < count; i++) {
-                matchesToSave.add(new TournamentMatch(t, round, i, null, null));
+        int totalSongs = entrants.size();
+
+        if (totalSongs > 48) {
+            // Rule: 1 vòng tối đa 48 bài (24 cặp). Nếu vượt quá 48 bài, tự động chia đều làm 2 vòng:
+            // Vòng 0: Vòng loại 1 (nửa đầu)
+            // Vòng 1: Vòng loại 2 (nửa sau)
+            // Vòng 2 trở đi: Ghép các người thắng từ 2 vòng loại vào nhánh đấu chính (Vòng chính, Tứ kết, Bán kết, Chung kết...)
+            int half1 = totalSongs / 2;
+            List<Song> group1 = entrants.subList(0, half1);
+            List<Song> group2 = entrants.subList(half1, totalSongs);
+
+            // Xếp Vòng 0 (Vòng loại 1)
+            int pos0 = 0;
+            for (int i = 0; i < group1.size(); i += 2) {
+                Song a = group1.get(i);
+                Song b = (i + 1 < group1.size()) ? group1.get(i + 1) : null;
+                TournamentMatch m = new TournamentMatch(t, 0, pos0++, a, b);
+                if (b == null) m.setWinner(a);
+                matchesToSave.add(m);
             }
-            count /= 2; round++;
+
+            // Xếp Vòng 1 (Vòng loại 2)
+            int pos1 = 0;
+            for (int i = 0; i < group2.size(); i += 2) {
+                Song a = group2.get(i);
+                Song b = (i + 1 < group2.size()) ? group2.get(i + 1) : null;
+                TournamentMatch m = new TournamentMatch(t, 1, pos1++, a, b);
+                if (b == null) m.setWinner(a);
+                matchesToSave.add(m);
+            }
+
+            // Tổng số người thắng sau 2 vòng loại: pos0 + pos1
+            int qualifiers = pos0 + pos1;
+            int mainSize = 1; while (mainSize < qualifiers) mainSize *= 2;
+            int nextRoundMatches = mainSize / 2;
+            int roundIdx = 2;
+            while (nextRoundMatches >= 1) {
+                for (int i = 0; i < nextRoundMatches; i++) {
+                    matchesToSave.add(new TournamentMatch(t, roundIdx, i, null, null));
+                }
+                nextRoundMatches /= 2;
+                roundIdx++;
+            }
+        } else {
+            // Chuẩn thông thường khi <= 48 bài (tối đa 24 cặp)
+            int size = 1; while (size < entrants.size()) size *= 2;
+            int byes = size - entrants.size();
+
+            int pos = 0;
+            for (int i = 0; i < byes; i++) {
+                TournamentMatch m = new TournamentMatch(t, 0, pos++, entrants.get(i), null);
+                m.setWinner(entrants.get(i));
+                matchesToSave.add(m);
+            }
+            for (int i = byes; i < entrants.size(); i += 2) {
+                Song a = entrants.get(i), b = (i + 1 < entrants.size() ? entrants.get(i + 1) : null);
+                TournamentMatch m = new TournamentMatch(t, 0, pos++, a, b);
+                if (b == null) m.setWinner(a);
+                matchesToSave.add(m);
+            }
+            int count = size / 4, round = 1;
+            while (count >= 1) {
+                for (int i = 0; i < count; i++) {
+                    matchesToSave.add(new TournamentMatch(t, round, i, null, null));
+                }
+                count /= 2; round++;
+            }
         }
 
         // Configure initial round open/close if specified
@@ -219,13 +265,34 @@ public class TournamentService {
     private void advance(Long tournamentId) {
         List<TournamentMatch> all = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(tournamentId);
         Map<Integer,List<TournamentMatch>> grouped = all.stream().collect(Collectors.groupingBy(TournamentMatch::getRoundIndex, TreeMap::new, Collectors.toList()));
+        boolean hasTwoQualifiers = grouped.containsKey(0) && grouped.containsKey(1) && grouped.containsKey(2) 
+            && grouped.get(0).size() > 0 && grouped.get(1).size() > 0 
+            && (grouped.get(0).size() + grouped.get(1).size() >= grouped.get(2).size());
+
         for (int r = 1; r < grouped.size(); r++) {
-            List<TournamentMatch> prev = grouped.get(r - 1), cur = grouped.get(r);
-            if (prev == null || cur == null) continue;
+            List<TournamentMatch> cur = grouped.get(r);
+            if (cur == null) continue;
+
+            if (r == 1 && hasTwoQualifiers) {
+                // Round 0 và Round 1 là 2 vòng loại song song (chưa advance vào nhau)
+                continue;
+            }
+
+            List<TournamentMatch> prevWinnersMatches;
+            if (r == 2 && hasTwoQualifiers) {
+                // Ghép người thắng từ cả Round 0 và Round 1 vào Round 2
+                prevWinnersMatches = new ArrayList<>();
+                prevWinnersMatches.addAll(grouped.get(0));
+                prevWinnersMatches.addAll(grouped.get(1));
+            } else {
+                prevWinnersMatches = grouped.get(r - 1);
+            }
+            if (prevWinnersMatches == null) continue;
+
             for (TournamentMatch m : cur) {
                 int idx = m.getPosition() * 2;
-                Song a = idx < prev.size() ? prev.get(idx).getWinner() : null;
-                Song b = idx + 1 < prev.size() ? prev.get(idx + 1).getWinner() : null;
+                Song a = idx < prevWinnersMatches.size() ? prevWinnersMatches.get(idx).getWinner() : null;
+                Song b = idx + 1 < prevWinnersMatches.size() ? prevWinnersMatches.get(idx + 1).getWinner() : null;
                 boolean changed = !Objects.equals(m.getSongA() == null ? null : m.getSongA().getId(), a == null ? null : a.getId())
                     || !Objects.equals(m.getSongB() == null ? null : m.getSongB().getId(), b == null ? null : b.getId());
                 if (changed) {
@@ -261,7 +328,8 @@ public class TournamentService {
         if (index == count - 1) return "Chung kết";
         if (index == count - 2) return "Bán kết";
         if (index == count - 3) return "Tứ kết";
-        if (index == 0) return "Vòng 1";
+        if (index == 0) return (count > 4) ? "Vòng loại 1" : "Vòng 1";
+        if (index == 1) return (count > 4) ? "Vòng loại 2" : "Vòng 2";
         return "Vòng " + (index + 1);
     }
 }
