@@ -322,7 +322,8 @@ public class TournamentService {
             for (TournamentMatch m : entry.getValue()) {
                 long a = m.getSongA() == null ? 0 : votes.countByMatchIdAndSongId(m.getId(), m.getSongA().getId());
                 long b = m.getSongB() == null ? 0 : votes.countByMatchIdAndSongId(m.getId(), m.getSongB().getId());
-                boolean hasVoted = voterKey != null && !voterKey.isBlank() && votes.existsByMatchIdAndVoterKey(m.getId(), voterKey);
+                Vote ownVote = voterKey == null || voterKey.isBlank() ? null : votes.findByMatchIdAndVoterKey(m.getId(), voterKey).orElse(null);
+                boolean votingClosed = m.isClosed() || !t.isActive() || (t.getEndTime() != null && !Instant.now().isBefore(t.getEndTime()));
                 Map<String, Object> dto = new LinkedHashMap<>();
                 dto.put("id", m.getId());
                 dto.put("position", m.getPosition());
@@ -333,8 +334,12 @@ public class TournamentService {
                 dto.put("winner", songDto(m.getWinner()));
                 dto.put("votesA", a);
                 dto.put("votesB", b);
-                dto.put("closed", m.isClosed() || !t.isActive() || (t.getEndTime() != null && Instant.now().isAfter(t.getEndTime())));
-                dto.put("hasVoted", hasVoted);
+                dto.put("closed", votingClosed);
+                dto.put("hasVoted", ownVote != null);
+                dto.put("myVote", ownVote == null ? null : Map.of("songId", ownVote.getSong().getId(),
+                        "displayName", ownVote.getDisplayName() == null ? "" : ownVote.getDisplayName(),
+                        "reason", ownVote.getReason() == null ? "" : ownVote.getReason()));
+                dto.put("canChangeVote", ownVote != null && !votingClosed && m.getWinner() == null && m.getSongA() != null && m.getSongB() != null);
                 dto.put("bye", m.getSongA() != null && m.getSongB() == null && m.getWinner() != null);
                 md.add(dto);
             }
@@ -377,9 +382,40 @@ public class TournamentService {
 
     @Transactional
     public Map<String, Object> vote(Long tournamentId, Long matchId, VoteRequest request) {
-        Tournament t = tournaments.findById(tournamentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
+        TournamentMatch m = writableVotingMatch(tournamentId, matchId);
+        Song selected = selectedVoteSong(m, request.songId());
+        if (votes.existsByMatchIdAndVoterKey(matchId, request.voterKey())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi. Hãy dùng Đổi lựa chọn.");
+        try {
+            votes.saveAndFlush(new Vote(m, request.voterKey(), selected, request.displayName().strip(),
+                    request.reason() == null ? "" : request.reason().strip()));
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi.");
+        }
+        return detail(tournamentId, request.voterKey());
+    }
+
+    @Transactional
+    public Map<String, Object> changeVote(Long tournamentId, Long matchId, VoteRequest request) {
+        TournamentMatch m = writableVotingMatch(tournamentId, matchId);
+        Vote ownVote = votes.findByMatchIdAndVoterKey(matchId, request.voterKey())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest hiện tại chưa có phiếu ở cặp này hoặc không có quyền sửa phiếu."));
+        Song selected = selectedVoteSong(m, request.songId());
+        // This is a managed existing row. Dirty checking emits UPDATE, never INSERT or a new voter identity.
+        ownVote.changeSelection(selected, request.displayName().strip(), request.reason() == null ? "" : request.reason().strip());
+        votes.flush();
+        return detail(tournamentId, request.voterKey());
+    }
+
+    private Tournament lockedTournament(Long id) {
+        return tournaments.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
+    }
+
+    private TournamentMatch writableVotingMatch(Long tournamentId, Long matchId) {
+        // All voting and admin state mutations acquire this row lock first, including on PostgreSQL.
+        Tournament t = lockedTournament(tournamentId);
         if (!t.isActive()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Giải đấu đã đóng.");
-        if (t.getEndTime() != null && Instant.now().isAfter(t.getEndTime())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Đã hết thời gian bình chọn.");
+        if (t.getEndTime() != null && !Instant.now().isBefore(t.getEndTime())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Đã hết thời gian bình chọn.");
         TournamentMatch m = matches.findByIdAndTournamentId(matchId, tournamentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cặp đấu."));
         if (m.isClosed()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu đã đóng hoặc chưa mở bình chọn.");
         if (m.getWinner() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu đã có kết quả.");
@@ -388,18 +424,13 @@ public class TournamentService {
         if (SongIdentity.metadata(m.getSongA().getTitle(), m.getSongA().getArtist())
                 .equals(SongIdentity.metadata(m.getSongB().getTitle(), m.getSongB().getArtist())))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu có hai bài hát trùng nhau. Vui lòng liên hệ quản trị viên.");
-        Song selected = null;
-        if (m.getSongA() != null && m.getSongA().getId().equals(request.songId())) selected = m.getSongA();
-        if (m.getSongB() != null && m.getSongB().getId().equals(request.songId())) selected = m.getSongB();
-        if (selected == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bài hát không thuộc cặp đấu này.");
-        if (votes.existsByMatchIdAndVoterKey(matchId, request.voterKey())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi.");
-        try {
-            votes.saveAndFlush(new Vote(m, request.voterKey(), selected, request.displayName().strip(),
-                    request.reason() == null ? "" : request.reason().strip()));
-        } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi.");
-        }
-        return detail(tournamentId, request.voterKey());
+        return m;
+    }
+
+    private Song selectedVoteSong(TournamentMatch match, Long songId) {
+        if (match.getSongA().getId().equals(songId)) return match.getSongA();
+        if (match.getSongB().getId().equals(songId)) return match.getSongB();
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bài hát không thuộc cặp đấu này.");
     }
 
     @Transactional(readOnly = true)
@@ -464,6 +495,7 @@ public class TournamentService {
 
     @Transactional
     public Map<String, Object> closeRound(Long tournamentId, int roundIndex) {
+        lockedTournament(tournamentId);
         List<TournamentMatch> round = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(tournamentId).stream()
                 .filter(m -> m.getRoundIndex() == roundIndex).toList();
         if (round.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy vòng.");
@@ -497,6 +529,7 @@ public class TournamentService {
 
     @Transactional
     public Map<String, Object> openRound(Long tournamentId, int roundIndex) {
+        lockedTournament(tournamentId);
         List<TournamentMatch> round = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(tournamentId).stream().filter(m -> m.getRoundIndex() == roundIndex).toList();
         if (round.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy vòng.");
         round.forEach(m -> m.setClosed(false));
@@ -505,6 +538,7 @@ public class TournamentService {
 
     @Transactional
     public Map<String, Object> setRoundVoting(Long tournamentId, int roundIndex, boolean open) {
+        lockedTournament(tournamentId);
         List<TournamentMatch> round = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(tournamentId).stream().filter(m -> m.getRoundIndex() == roundIndex).toList();
         if (round.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy vòng.");
         round.forEach(m -> m.setClosed(!open));
@@ -513,14 +547,14 @@ public class TournamentService {
 
     @Transactional
     public Map<String, Object> setEndTime(Long tournamentId, Instant endTime) {
-        Tournament t = tournaments.findById(tournamentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
+        Tournament t = lockedTournament(tournamentId);
         t.setEndTime(endTime);
         return detail(tournamentId, null);
     }
 
     @Transactional
     public Map<String, Object> setActive(Long tournamentId, boolean active) {
-        Tournament t = tournaments.findById(tournamentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
+        Tournament t = lockedTournament(tournamentId);
         t.setActive(active);
         return detail(tournamentId, null);
     }

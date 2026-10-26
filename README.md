@@ -11,7 +11,8 @@ Website bình chọn bài hát theo thể thức loại trực tiếp.
 ## Chức năng
 - Tạo giải đấu với số bài hát tùy chỉnh (mỗi dòng: `Tên bài — Nghệ sĩ`)
 - Xem danh sách giải và sơ đồ các vòng
-- Bình chọn một lần cho mỗi cặp trên mỗi trình duyệt (định danh voter lưu trong localStorage)
+- Mỗi trình duyệt có một phiếu cho mỗi cặp (guest ID lưu trong localStorage); được đổi lựa chọn khi cặp vẫn mở, còn thời gian và chưa có kết quả
+- Hiển thị bài đã chọn và nút **Đổi lựa chọn** trong cả dạng thẻ và sơ đồ cây; popup nạp lại lựa chọn/lý do hiện tại
 - Tự đếm phiếu; quản trị viên đóng vòng để chốt người thắng theo tổng phiếu
 - Tự chuyển người thắng sang vòng tiếp theo; xử lý số bài không phải lũy thừa của 2
 - Quản trị viên có thể mở/đóng vòng và đặt thời gian kết thúc
@@ -84,6 +85,7 @@ Không dùng `ddl-auto=create` trên dữ liệu thật. Bản demo đang dùng 
 - `POST /api/tournaments`
 - `GET /api/tournaments/{id}`
 - `POST /api/tournaments/{id}/matches/{matchId}/vote`
+- `PUT /api/tournaments/{id}/matches/{matchId}/vote` — sửa phiếu đã có của guest hiện tại, dùng cùng body với POST
 - `POST /api/tournaments/{id}/admin/rounds/{roundIndex}/close`
 - `POST /api/tournaments/{id}/admin/rounds/{roundIndex}/open`
 - `PUT /api/tournaments/{id}/admin/end-time`
@@ -96,6 +98,10 @@ Body API vote hiện tại:
 {"voterKey":"browser-uuid","songId":1,"displayName":"Duy Anh","reason":"Giai điệu hay"}
 ```
 `displayName` bắt buộc; `reason` có thể bỏ qua hoặc để trống. Đổi tên không tạo thêm quyền vote. Tên được lưu tại thời điểm vote; bảng xếp hạng dùng tên trong phiếu mới nhất của người chơi trong giải. Phiếu trước bản cập nhật vẫn được tính và hiển thị “Người chơi cũ” khi chưa có tên. Tên và lý do được hiển thị công khai trong chi tiết cặp đấu.
+
+POST chỉ tạo phiếu mới, trả 409 nếu guest đã có phiếu. PUT tìm phiếu theo đúng `matchId` và `voterKey`; guest chưa có phiếu không được tạo phiếu qua PUT (403). Bài mới phải thuộc cặp đấu. Ghi nhận thay đổi bằng UPDATE trên entity hiện có, giữ nguyên ID phiếu, guest ID và thời điểm tạo; ràng buộc unique `(match_id, voter_key)` vẫn giữ nguyên. Tổng phiếu và bảng xếp hạng lấy từ dữ liệu đã cập nhật, không cộng thêm một lượt vote.
+
+Backend kiểm tra giải đang hoạt động, hạn bình chọn, trạng thái khóa và người thắng trước khi ghi dữ liệu. Vote, đổi phiếu và các thao tác admin khóa/chốt vòng/đóng giải/đổi hạn dùng chung khóa hàng giải đấu trong transaction để tránh sửa phiếu sau khi admin đã khóa. API chi tiết trả `myVote` (bài, tên, lý do hiện tại) và `canChangeVote` cho guest được xác định bằng `voterKey`; không công khai guest ID trong danh sách chi tiết phiếu. Chức năng này dùng cấu hình PostgreSQL/Neon hiện có và không cần thêm bảng hoặc cột.
 
 ### Kiểm thử
 ```bash

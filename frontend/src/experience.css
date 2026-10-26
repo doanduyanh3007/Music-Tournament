@@ -1,4 +1,13 @@
 /* One palette for the entire application, including page gutters and dialogs. */
+.vote-dialog-body .vote-change-options { border:1px solid var(--line); border-radius:8px; padding:12px; min-width:0; }
+.vote-change-options legend { color:var(--ink); font-size:13px; font-weight:700; padding:0 5px; }
+.vote-dialog-body .vote-change-option { flex-direction:row; align-items:center; gap:12px; padding:12px; margin:8px 0; border:1px solid var(--line); border-radius:6px; cursor:pointer; }
+.vote-dialog-body .vote-change-option input { width:16px; height:16px; flex-shrink:0; accent-color:#6366f1; }
+.vote-change-option span { min-width:0; overflow-wrap:anywhere; }
+.vote-change-option small { display:block; color:var(--muted); font-size:11px; font-weight:400; }
+.vote-change-option .current-choice-label { color:var(--blue); font-weight:700; margin-top:3px; }
+.vote-dialog-body .change-option-selected { border-color:var(--blue); background:rgba(99,102,241,.08); }
+:is(.match-song,.tree-match-song).guest-selected-song:not(.winner):not(.grand-champion-song) { border-color:#818cf8; box-shadow:inset 3px 0 #818cf8; }
 html[data-theme="dark"] {
   color-scheme: dark;
   --canvas: #0c1220;

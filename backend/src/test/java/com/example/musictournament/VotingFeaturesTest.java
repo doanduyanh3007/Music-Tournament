@@ -9,6 +9,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import com.example.musictournament.service.TournamentService;
+import com.example.musictournament.dto.VoteRequest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
+import java.util.concurrent.*;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -27,6 +34,8 @@ class VotingFeaturesTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+    @Autowired TournamentService service;
+    @Autowired PlatformTransactionManager transactionManager;
 
     JsonNode createTournament() throws Exception {
         String body = json.writeValueAsString(Map.of("name", "Test Cup", "songs",
@@ -222,5 +231,139 @@ class VotingFeaturesTest {
             for (int round = 0; round < rounds; round++) t = close(t,round);
             assertThat(t.get("champion").isNull()).isFalse();
         }
+    }
+
+    JsonNode change(JsonNode t, JsonNode m, String guest, long songId, int expected) throws Exception {
+        return json.readTree(mvc.perform(put(voteUrl(t,m)+"/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("voterKey",guest,"songId",songId,"displayName","Guest QA","reason","New choice"))))
+                .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString());
+    }
+
+    Map<String,Object> storedVote(JsonNode m, String guest) {
+        return jdbc.queryForMap("select id, voter_key, song_id, created_at from votes where match_id=? and voter_key=?", m.get("id").asLong(),guest);
+    }
+
+    @Test void changingChoiceUpdatesSameRowAndKeepsExactlyOneVoteAndOriginalGuest() throws Exception {
+        JsonNode t = createTournament(), m = t.get("rounds").get(0).get("matches").get(0);
+        vote(t,m,"change-owner","Original name","Original reason",200);
+        Map<String,Object> before = storedVote(m,"change-owner");
+        long a = m.get("songA").get("id").asLong(), b = m.get("songB").get("id").asLong();
+        for (long songId : new long[]{b,a,b,b}) {
+            JsonNode updated = change(t,m,"change-owner",songId,200).get("rounds").get(0).get("matches").get(0);
+            assertThat(updated.get("myVote").get("songId").asLong()).isEqualTo(songId);
+            assertThat(updated.get("canChangeVote").asBoolean()).isTrue();
+            assertThat(updated.get("votesA").asLong()+updated.get("votesB").asLong()).isEqualTo(1);
+        }
+        Map<String,Object> after = storedVote(m,"change-owner");
+        assertThat(after.get("id")).isEqualTo(before.get("id"));
+        assertThat(after.get("voter_key")).isEqualTo(before.get("voter_key"));
+        assertThat(after.get("created_at")).isEqualTo(before.get("created_at"));
+        assertThat(((Number)after.get("song_id")).longValue()).isEqualTo(b);
+        assertThat(jdbc.queryForObject("select count(*) from votes where match_id=?",Long.class,m.get("id").asLong())).isEqualTo(1);
+        vote(t,m,"change-owner","Another name","",409);
+        mvc.perform(get(voteUrl(t,m)+"/votes")).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].song.id").value(b)).andExpect(jsonPath("$.items[0].reason").value("New choice"));
+        mvc.perform(get("/api/tournaments/"+t.get("id").asLong()+"/players"))
+                .andExpect(jsonPath("$[0].totalVotes").value(1));
+        mvc.perform(get("/api/tournaments/"+t.get("id").asLong()).param("voterKey","change-owner"))
+                .andExpect(jsonPath("$.rounds[0].matches[0].myVote.songId").value(b));
+        for (String guest : new String[]{"", "someone-else"}) {
+            mvc.perform(get("/api/tournaments/"+t.get("id").asLong()).param("voterKey",guest))
+                    .andExpect(jsonPath("$.rounds[0].matches[0].myVote").isEmpty())
+                    .andExpect(jsonPath("$.rounds[0].matches[0].canChangeVote").value(false));
+        }
+    }
+
+    @Test void editRequiresExistingVoteForThisGuestAndMatchAndRejectsInvalidTargets() throws Exception {
+        JsonNode t = createTournament(), m = t.get("rounds").get(0).get("matches").get(0), other = t.get("rounds").get(0).get("matches").get(1);
+        vote(t,m,"owner","Guest QA","",200);
+        long b = m.get("songB").get("id").asLong();
+        change(t,m,"attacker",b,403);
+        change(t,other,"owner",other.get("songB").get("id").asLong(),403);
+        change(t,m,"owner",other.get("songA").get("id").asLong(),400);
+        change(createTournament(),m,"owner",b,404);
+        mvc.perform(put(voteUrl(t,m)+"/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("id",storedVote(m,"owner").get("id"),"voterKey","attacker","songId",b,"displayName","Guest QA"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(put(voteUrl(t,m)+"/vote").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("songId",b,"displayName","Guest QA"))))
+                .andExpect(status().isBadRequest());
+        assertThat(((Number)storedVote(m,"owner").get("song_id")).longValue()).isEqualTo(m.get("songA").get("id").asLong());
+        assertThat(jdbc.queryForObject("select count(*) from votes where match_id=?",Long.class,m.get("id").asLong())).isEqualTo(1);
+    }
+
+    @Test void editsAreRejectedWhenLockedExpiredInactiveOrFinalizedEvenAfterReopening() throws Exception {
+        JsonNode t = createTournament(), m = t.get("rounds").get(0).get("matches").get(0);
+        vote(t,m,"locked-owner","Guest QA","",200);
+        long a=m.get("songA").get("id").asLong(), b=m.get("songB").get("id").asLong();
+        String path="/api/tournaments/"+t.get("id").asLong();
+        mvc.perform(put(path+"/admin/rounds/0/voting").param("open","false")).andExpect(status().isOk());
+        change(t,m,"locked-owner",b,409);
+        mvc.perform(put(path+"/admin/rounds/0/voting").param("open","true")).andExpect(status().isOk());
+        change(t,m,"locked-owner",b,200);
+        mvc.perform(put(path+"/admin/status").param("active","false")).andExpect(status().isOk());
+        change(t,m,"locked-owner",a,409);
+        mvc.perform(put(path+"/admin/status").param("active","true")).andExpect(status().isOk());
+        mvc.perform(put(path+"/admin/end-time").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("endTime",Instant.now().minusSeconds(60).toString())))).andExpect(status().isOk());
+        change(t,m,"locked-owner",a,409);
+        mvc.perform(put(path+"/admin/end-time").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("endTime",Instant.now().plusSeconds(3600).toString())))).andExpect(status().isOk());
+        close(t,0);
+        mvc.perform(put(path+"/admin/rounds/0/voting").param("open","true")).andExpect(status().isOk());
+        change(t,m,"locked-owner",a,409);
+        assertThat(((Number)storedVote(m,"locked-owner").get("song_id")).longValue()).isEqualTo(b);
+    }
+
+    @Test void legacyVotesCanBeChangedWithoutRecreatingTheirIdentity() throws Exception {
+        JsonNode t=createTournament(),m=t.get("rounds").get(0).get("matches").get(0);
+        jdbc.update("insert into votes (match_id,song_id,voter_key,created_at) values (?,?,?,CURRENT_TIMESTAMP)",
+                m.get("id").asLong(),m.get("songA").get("id").asLong(),"old-owner");
+        Object id=storedVote(m,"old-owner").get("id");
+        change(t,m,"old-owner",m.get("songB").get("id").asLong(),200);
+        assertThat(storedVote(m,"old-owner").get("id")).isEqualTo(id);
+    }
+
+    @Test void simultaneousEditsStillLeaveOneExistingVoteRow() throws Exception {
+        JsonNode t=createTournament(),m=t.get("rounds").get(0).get("matches").get(0);
+        vote(t,m,"parallel-owner","Guest QA","",200);
+        Object id=storedVote(m,"parallel-owner").get("id");
+        ExecutorService pool=Executors.newFixedThreadPool(2);
+        CountDownLatch start=new CountDownLatch(1);
+        try {
+            Future<?> a=pool.submit(() -> { awaitLatch(start); service.changeVote(t.get("id").asLong(),m.get("id").asLong(),new VoteRequest("parallel-owner",m.get("songA").get("id").asLong(),"Guest QA","A")); });
+            Future<?> b=pool.submit(() -> { awaitLatch(start); service.changeVote(t.get("id").asLong(),m.get("id").asLong(),new VoteRequest("parallel-owner",m.get("songB").get("id").asLong(),"Guest QA","B")); });
+            start.countDown(); a.get(5,TimeUnit.SECONDS); b.get(5,TimeUnit.SECONDS);
+            assertThat(storedVote(m,"parallel-owner").get("id")).isEqualTo(id);
+            assertThat(jdbc.queryForObject("select count(*) from votes where match_id=?",Long.class,m.get("id").asLong())).isEqualTo(1);
+        } finally { start.countDown(); pool.shutdownNow(); }
+    }
+
+    @Test void editWaitsForAdminTransactionThenRechecksLockedState() throws Exception {
+        JsonNode t=createTournament(),m=t.get("rounds").get(0).get("matches").get(0);
+        vote(t,m,"race-owner","Guest QA","",200);
+        long tournamentId=t.get("id").asLong(),matchId=m.get("id").asLong();
+        CountDownLatch adminHolding=new CountDownLatch(1),releaseAdmin=new CountDownLatch(1),editStarted=new CountDownLatch(1);
+        ExecutorService pool=Executors.newFixedThreadPool(2);
+        try {
+            Future<?> admin=pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                service.setRoundVoting(tournamentId,0,false); adminHolding.countDown(); awaitLatch(releaseAdmin);
+            }));
+            awaitLatch(adminHolding);
+            Future<?> edit=pool.submit(() -> { editStarted.countDown(); service.changeVote(tournamentId,matchId,
+                    new VoteRequest("race-owner",m.get("songB").get("id").asLong(),"Guest QA","Too late")); });
+            awaitLatch(editStarted);
+            org.junit.jupiter.api.Assertions.assertThrows(TimeoutException.class,() -> edit.get(200,TimeUnit.MILLISECONDS));
+            releaseAdmin.countDown(); admin.get(5,TimeUnit.SECONDS);
+            ExecutionException rejection=org.junit.jupiter.api.Assertions.assertThrows(ExecutionException.class,() -> edit.get(5,TimeUnit.SECONDS));
+            assertThat(rejection.getCause()).isInstanceOf(ResponseStatusException.class);
+            assertThat(((ResponseStatusException)rejection.getCause()).getStatusCode().value()).isEqualTo(409);
+            assertThat(((Number)storedVote(m,"race-owner").get("song_id")).longValue()).isEqualTo(m.get("songA").get("id").asLong());
+        } finally { releaseAdmin.countDown(); pool.shutdownNow(); }
+    }
+
+    private void awaitLatch(CountDownLatch latch) {
+        try { if (!latch.await(5,TimeUnit.SECONDS)) throw new AssertionError("Timed out waiting for test transaction"); }
+        catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new RuntimeException(ex); }
     }
 }

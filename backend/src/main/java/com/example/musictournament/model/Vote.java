@@ -33,6 +33,11 @@ public class Vote {
     public String getVoterKey(){return voterKey;}
     public String getDisplayName(){return displayName;}
     public String getReason(){return reason;}
+    public void changeSelection(Song song, String displayName, String reason) {
+        this.song = song;
+        this.displayName = displayName;
+        this.reason = reason;
+    }
     public Song getSong(){return song;}
     public Instant getCreatedAt(){return createdAt;}
 }

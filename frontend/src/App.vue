@@ -3,6 +3,8 @@ import { computed, nextTick, provide, onMounted, onUnmounted, ref, watch } from 
 import { parseSongs, uniqueSongs, formatSong } from './songInput.js'
 import ChampionStage from './ChampionStage.vue'
 import SongBadge from './SongBadge.vue'
+import VoteSelection from './VoteSelection.vue'
+import { selectedVoteSong, isVotingOpen, canChangeVote } from './voteState.js'
 import { getChampionship, createCoronationTracker } from './championship.js'
 
 const API = '/api'
@@ -36,6 +38,10 @@ const nameInput = ref('')
 const showNameModal = ref(false)
 const nameError = ref('')
 const pendingVote = ref(null)
+const pendingLiveMatch = computed(() => pendingVote.value && tournament.value?.id === pendingVote.value.tournamentId
+  ? tournament.value.rounds.flatMap(r => r.matches).find(m => m.id === pendingVote.value.match.id) : null)
+const voteDialogLocked = computed(() => pendingVote.value && (!isVotingOpen(tournament.value, pendingLiveMatch.value)
+  || (pendingVote.value.editing ? !canChangeVote(tournament.value, pendingLiveMatch.value) : pendingLiveMatch.value?.hasVoted)))
 const voteReason = ref('')
 const voteSubmitting = ref(false)
 const voteError = ref('')
@@ -1032,30 +1038,39 @@ async function createTournament() {
 }
 
 function vote(match, song) {
-  if (!tournament.value || match.hasVoted || match.winner || match.closed || !match.songA || !match.songB) return
-  pendingVote.value = { tournamentId: tournament.value.id, match, song }
+  if (!isVotingOpen(tournament.value, match) || match.hasVoted) return
+  pendingVote.value = { tournamentId: tournament.value.id, match, song, editing: false }
   voteReason.value = ''
   voteError.value = ''
   nameInput.value = displayName.value
 }
 
+function changeVote(match) {
+  if (!canChangeVote(tournament.value, match)) return
+  pendingVote.value = { tournamentId: tournament.value.id, match, song: selectedVoteSong(match), editing: true }
+  voteReason.value = match.myVote.reason || ''
+  nameInput.value = displayName.value || match.myVote.displayName || ''
+  voteError.value = ''
+}
+
 async function submitVote() {
   if (!pendingVote.value || voteSubmitting.value) return
+  if (voteDialogLocked.value) { voteError.value = 'Không thể lưu phiếu: trận đã khóa, hết giờ hoặc phiếu đã thay đổi. Vui lòng tải lại cặp đấu.'; return }
   const name = nameInput.value.trim()
   if (!name || name.length > 50) { voteError.value = 'Vui lòng nhập tên hiển thị từ 1 đến 50 ký tự.'; return }
-  const { tournamentId, match, song } = pendingVote.value
+  const { tournamentId, match, song, editing } = pendingVote.value
   voteSubmitting.value = true
   voteError.value = ''
   try {
     const updated = await api('/tournaments/' + tournamentId + '/matches/' + match.id + '/vote', {
-      method: 'POST', body: JSON.stringify({ voterKey, songId: song.id, displayName: name, reason: voteReason.value.trim() })
+      method: editing ? 'PUT' : 'POST', body: JSON.stringify({ voterKey, songId: song.id, displayName: name, reason: voteReason.value.trim() })
     })
     displayName.value = name
     localStorage.setItem('musicTournamentDisplayName', name)
     if (tournament.value?.id === tournamentId) tournament.value = updated
     pendingVote.value = null
     await loadTournaments()
-    flash('Đã ghi nhận vote cho “' + song.title + '”')
+    flash((editing ? 'Đã đổi lựa chọn sang “' : 'Đã ghi nhận vote cho “') + song.title + '”')
   } catch (e) {
     voteError.value = e.message
     await refreshCurrent()
@@ -1928,7 +1943,7 @@ onUnmounted(() => {
                   <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
                   <span v-else class="match-state live">● Đang vote</span>
                 </div>
-                <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
+                <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                   <template v-if="song">
                     <div class="song-cover-box" :title="song.title + ' — ' + (song.artist || '')">
                       <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
@@ -1944,13 +1959,13 @@ onUnmounted(() => {
                         {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
                       </button>
                       <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                        {{ match.winner?.id===song.id ? (isChampion(song) ? '♛ CHAMPION' : '✓ WINNER') : (match.closed ? 'Đã đóng' : 'Vote') }}
+                        {{ match.winner?.id===song.id ? (isChampion(song) ? '♛ CHAMPION' : '✓ WINNER') : (match.closed ? 'Đã đóng' : match.myVote?.songId===song.id ? '✓ Đã chọn' : 'Vote') }}
                       </button>
                     </div>
                   </template>
                   <div v-else class="tbd">Đang chờ kết quả vòng trước…</div>
                 </div>
-                <div v-if="match.hasVoted&&!match.winner" class="match-foot">✓ Bạn đã bình chọn cặp này</div>
+                <VoteSelection v-if="match.hasVoted" :match="match" :can-change="canChangeVote(tournament,match)" @change="changeVote(match)" />
                 <div v-else-if="match.bye" class="match-foot">Tự động vào vòng tiếp theo</div>
               </article>
             </div>
@@ -2019,7 +2034,7 @@ onUnmounted(() => {
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
@@ -2040,6 +2055,7 @@ onUnmounted(() => {
                         </template>
                         <div v-else class="tree-tbd">Chờ vòng trước…</div>
                       </div>
+                      <VoteSelection v-if="match.hasVoted" :match="match" :can-change="canChangeVote(tournament,match)" compact @change="changeVote(match)" />
                     </div>
                   </div>
                 </div>
@@ -2069,7 +2085,7 @@ onUnmounted(() => {
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng vote</span>
                         <span v-else class="mini-status live">● ĐANG BÌNH CHỌN</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
@@ -2090,6 +2106,7 @@ onUnmounted(() => {
                         </template>
                         <div v-else class="tree-tbd">Đang đợi đối thủ vào Chung kết…</div>
                       </div>
+                      <VoteSelection v-if="match.hasVoted" :match="match" :can-change="canChangeVote(tournament,match)" compact @change="changeVote(match)" />
                     </div>
                   </div>
                 </div>
@@ -2114,7 +2131,7 @@ onUnmounted(() => {
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
@@ -2135,6 +2152,7 @@ onUnmounted(() => {
                         </template>
                         <div v-else class="tree-tbd">Chờ vòng trước…</div>
                       </div>
+                      <VoteSelection v-if="match.hasVoted" :match="match" :can-change="canChangeVote(tournament,match)" compact @change="changeVote(match)" />
                     </div>
                   </div>
                 </div>
@@ -2451,11 +2469,20 @@ onUnmounted(() => {
 
   <div v-if="pendingVote" class="modal-overlay" @click.self="!voteSubmitting && (pendingVote=null)" @keydown.esc="!voteSubmitting && (pendingVote=null)">
     <form class="vote-dialog" role="dialog" aria-modal="true" aria-labelledby="vote-title" @submit.prevent="submitVote">
-      <div class="player-modal-header"><h3 id="vote-title">Bình chọn bài hát</h3><button type="button" class="modal-close-btn" :disabled="voteSubmitting" aria-label="Đóng" @click="pendingVote=null">✕</button></div>
-      <div class="vote-dialog-body"><div class="vote-choice"><b>{{ pendingVote.song.title }}</b><SongBadge :song="pendingVote.song" :match="pendingVote.match" /><small>{{ pendingVote.song.artist }}</small></div>
+      <div class="player-modal-header"><h3 id="vote-title">{{ pendingVote.editing ? 'Đổi lựa chọn' : 'Bình chọn bài hát' }}</h3><button type="button" class="modal-close-btn" :disabled="voteSubmitting" aria-label="Đóng" @click="pendingVote=null">✕</button></div>
+      <div class="vote-dialog-body">
+        <fieldset v-if="pendingVote.editing" class="vote-change-options" :disabled="voteSubmitting || voteDialogLocked">
+          <legend>Chọn bài hát muốn bình chọn</legend>
+          <label v-for="song in [pendingVote.match.songA,pendingVote.match.songB]" :key="song.id" class="vote-change-option" :class="{'change-option-selected':pendingVote.song.id===song.id}">
+            <input type="radio" name="change-vote-song" :value="song.id" :checked="pendingVote.song.id===song.id" @change="pendingVote.song=song">
+            <span><b>{{ song.title }}</b><small>{{ song.artist }}</small><small v-if="pendingVote.match.myVote.songId===song.id" class="current-choice-label">Phiếu hiện tại</small></span>
+          </label>
+          <p class="muted">Đổi lựa chọn cập nhật phiếu hiện có; bạn vẫn chỉ có một phiếu cho cặp đấu này.</p>
+        </fieldset>
+        <div class="vote-choice"><b>{{ pendingVote.song.title }}</b><SongBadge :song="pendingVote.song" :match="pendingVote.match" /><small>{{ pendingVote.song.artist }}</small></div>
         <label>Tên hiển thị <span class="muted">(bắt buộc)</span><input v-model="nameInput" required maxlength="50" autocomplete="nickname" :disabled="voteSubmitting" placeholder="Nhập tên của bạn"></label>
         <label>Vì sao bạn chọn bài này? <span class="muted">(không bắt buộc)</span><textarea v-model="voteReason" rows="4" maxlength="1000" :disabled="voteSubmitting" placeholder="Chia sẻ cảm nhận của bạn, hoặc để trống…"></textarea></label><small class="muted">{{ voteReason.length }}/1000 ký tự · Tên và lý do sẽ được hiển thị công khai trong chi tiết phiếu.</small>
-        <p v-if="voteError" class="form-error" role="alert">{{ voteError }}</p><div class="dialog-actions"><button type="button" class="btn soft" :disabled="voteSubmitting" @click="pendingVote=null">Hủy</button><button class="btn primary" type="submit" :disabled="voteSubmitting">{{ voteSubmitting ? 'Đang gửi…' : 'Xác nhận vote' }}</button></div>
+        <p v-if="voteDialogLocked" class="form-error" role="alert">Trận đấu hoặc phiếu vừa thay đổi; không thể lưu lựa chọn lúc này.</p><p v-if="voteError" class="form-error" role="alert">{{ voteError }}</p><div class="dialog-actions"><button type="button" class="btn soft" :disabled="voteSubmitting" @click="pendingVote=null">Hủy</button><button class="btn primary" type="submit" :disabled="voteSubmitting || voteDialogLocked">{{ voteSubmitting ? 'Đang gửi…' : pendingVote.editing ? 'Lưu lựa chọn' : 'Xác nhận vote' }}</button></div>
       </div>
     </form>
   </div>
