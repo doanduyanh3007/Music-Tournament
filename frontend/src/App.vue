@@ -41,6 +41,242 @@ const activePlayerSong = ref(null)
 // 2. Share & QR state
 const showQrModal = ref(false)
 
+// 3. Theme Toggle (Dark / Light)
+const currentTheme = ref(localStorage.getItem('musicTournamentTheme') || 'light')
+
+function applyTheme(theme) {
+  currentTheme.value = theme
+  localStorage.setItem('musicTournamentTheme', theme)
+  document.documentElement.setAttribute('data-theme', theme)
+  if (theme === 'dark') {
+    document.body.classList.add('dark-mode')
+  } else {
+    document.body.classList.remove('dark-mode')
+  }
+}
+
+function toggleTheme() {
+  applyTheme(currentTheme.value === 'dark' ? 'light' : 'dark')
+}
+
+// 4. Admin & Guest Role Permissions
+const userRole = ref(localStorage.getItem('musicTournamentRole') || 'GUEST')
+const isAdmin = computed(() => userRole.value === 'ADMIN')
+const showLoginModal = ref(false)
+const adminPasswordInput = ref('')
+const loginError = ref('')
+
+async function loginAdmin(tokenToVerify) {
+  const token = tokenToVerify !== undefined ? tokenToVerify : adminPasswordInput.value
+  loginError.value = ''
+  try {
+    const res = await api('/admin/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token: (token || '').trim() })
+    })
+    if (res.valid) {
+      userRole.value = 'ADMIN'
+      localStorage.setItem('musicTournamentRole', 'ADMIN')
+      showLoginModal.value = false
+      adminPasswordInput.value = ''
+      flash('👑 Đăng nhập Quản trị viên thành công!')
+    }
+  } catch (err) {
+    loginError.value = err.message || 'Mã quản trị viên không chính xác (Mặc định: admin-demo-2026)'
+  }
+}
+
+function quickLoginAdmin() {
+  adminPasswordInput.value = 'admin-demo-2026'
+  loginAdmin('admin-demo-2026')
+}
+
+function logoutAdmin() {
+  userRole.value = 'GUEST'
+  localStorage.setItem('musicTournamentRole', 'GUEST')
+  flash('👤 Đã chuyển sang chế độ Khách (Người bình chọn).')
+}
+
+function requireAdmin(actionName, callback) {
+  if (isAdmin.value) {
+    callback()
+  } else {
+    loginError.value = `Chức năng "${actionName}" chỉ dành cho Quản trị viên. Vui lòng đăng nhập để tiếp tục.`
+    showLoginModal.value = true
+  }
+}
+
+// 5. Guest Features: Favorites & Champion Prediction
+const favoriteSongIds = ref(JSON.parse(localStorage.getItem('musicTournamentFavorites') || '[]'))
+
+function toggleFavorite(songId) {
+  if (!songId) return
+  const idx = favoriteSongIds.value.indexOf(songId)
+  if (idx >= 0) {
+    favoriteSongIds.value.splice(idx, 1)
+    flash('Đã bỏ yêu thích bài hát')
+  } else {
+    favoriteSongIds.value.push(songId)
+    flash('❤️ Đã thêm vào danh sách bài hát yêu thích!')
+  }
+  localStorage.setItem('musicTournamentFavorites', JSON.stringify(favoriteSongIds.value))
+}
+
+function isFavorite(songId) {
+  return favoriteSongIds.value.includes(songId)
+}
+
+const predictionSongId = ref(0)
+
+function loadPrediction() {
+  if (!tournament.value) {
+    predictionSongId.value = 0
+    return
+  }
+  const saved = localStorage.getItem(`musicTournamentPred_${tournament.value.id}`)
+  predictionSongId.value = saved ? Number(saved) : 0
+}
+
+function setPrediction(songId) {
+  if (!tournament.value) return
+  predictionSongId.value = songId
+  localStorage.setItem(`musicTournamentPred_${tournament.value.id}`, String(songId))
+  const song = tournament.value.songs.find(s => s.id === songId)
+  flash(`🔮 Đã lưu dự đoán Quán quân: “${song?.title || 'Bài hát'}”!`)
+}
+
+// 6. Leaderboard & Standings (Hiệu số vote & Thứ hạng)
+const leaderboardSearch = ref('')
+const leaderboardSort = ref('rank') // 'rank' | 'diff' | 'votes' | 'winrate'
+const leaderboardFavOnly = ref(false)
+
+const computedLeaderboard = computed(() => {
+  if (!tournament.value || !tournament.value.songs) return []
+  const t = tournament.value
+  const songs = t.songs || []
+  const rounds = t.rounds || []
+  const totalRounds = rounds.length
+  const champ = tournament.value.champion
+
+  const statsMap = new Map()
+  songs.forEach(s => {
+    statsMap.set(s.id, {
+      song: s,
+      matchesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      votesFor: 0,
+      votesAgainst: 0,
+      furthestRound: 0,
+      furthestStage: 'Vòng 1',
+      tier: 99
+    })
+  })
+
+  rounds.forEach((r, rIdx) => {
+    (r.matches || []).forEach(m => {
+      const a = m.songA
+      const b = m.songB
+      if (!a || !b) return
+      const vA = m.votesA || 0
+      const vB = m.votesB || 0
+
+      const stA = statsMap.get(a.id)
+      if (stA) {
+        stA.matchesPlayed++
+        stA.votesFor += vA
+        stA.votesAgainst += vB
+        if (m.winner) {
+          if (m.winner.id === a.id) stA.wins++
+          else stA.losses++
+        }
+        if (rIdx >= stA.furthestRound) {
+          stA.furthestRound = rIdx
+          stA.furthestStage = r.name || `Vòng ${rIdx + 1}`
+        }
+      }
+
+      const stB = statsMap.get(b.id)
+      if (stB) {
+        stB.matchesPlayed++
+        stB.votesFor += vB
+        stB.votesAgainst += vA
+        if (m.winner) {
+          if (m.winner.id === b.id) stB.wins++
+          else stB.losses++
+        }
+        if (rIdx >= stB.furthestRound) {
+          stB.furthestRound = rIdx
+          stB.furthestStage = r.name || `Vòng ${rIdx + 1}`
+        }
+      }
+    })
+  })
+
+  statsMap.forEach(st => {
+    if (champ && st.song.id === champ.id) {
+      st.tier = 1
+      st.furthestStage = 'Quán quân 🏆'
+    } else if (totalRounds > 0 && st.furthestRound === totalRounds - 1) {
+      st.tier = 2
+      st.furthestStage = 'Á quân 🥈'
+    } else if (totalRounds > 1 && st.furthestRound === totalRounds - 2) {
+      st.tier = 3
+      st.furthestStage = 'Bán kết 🥉'
+    } else if (totalRounds > 2 && st.furthestRound === totalRounds - 3) {
+      st.tier = 4
+      st.furthestStage = 'Tứ kết'
+    } else {
+      st.tier = 100 - st.furthestRound
+    }
+    st.voteDiff = st.votesFor - st.votesAgainst
+    const totalV = st.votesFor + st.votesAgainst
+    st.voteRatioPercent = totalV > 0 ? Math.round((st.votesFor / totalV) * 1000) / 10 : 0
+    st.winRatePercent = st.matchesPlayed > 0 ? Math.round((st.wins / st.matchesPlayed) * 1000) / 10 : 0
+  })
+
+  let list = Array.from(statsMap.values())
+
+  list.sort((x, y) => {
+    if (x.tier !== y.tier) return x.tier - y.tier
+    if (y.voteDiff !== x.voteDiff) return y.voteDiff - x.voteDiff
+    if (y.votesFor !== x.votesFor) return y.votesFor - x.votesFor
+    return y.wins - x.wins
+  })
+
+  list.forEach((item, idx) => {
+    item.rank = idx + 1
+  })
+
+  if (leaderboardSort.value === 'diff') {
+    list.sort((a, b) => b.voteDiff - a.voteDiff || b.votesFor - a.votesFor)
+  } else if (leaderboardSort.value === 'votes') {
+    list.sort((a, b) => b.votesFor - a.votesFor || b.voteDiff - a.voteDiff)
+  } else if (leaderboardSort.value === 'winrate') {
+    list.sort((a, b) => b.winRatePercent - a.winRatePercent || b.wins - a.wins)
+  }
+
+  const q = leaderboardSearch.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(item => 
+      (item.song.title && item.song.title.toLowerCase().includes(q)) ||
+      (item.song.artist && item.song.artist.toLowerCase().includes(q))
+    )
+  }
+
+  if (leaderboardFavOnly.value) {
+    list = list.filter(item => favoriteSongIds.value.includes(item.song.id))
+  }
+
+  return list
+})
+
+const podiumSongs = computed(() => {
+  if (!tournament.value) return []
+  const fullRanked = [...computedLeaderboard.value].sort((a, b) => a.rank - b.rank)
+  return fullRanked.slice(0, 3)
+})
+
 function getVoterKey() {
   let key = localStorage.getItem('musicTournamentVoterKey')
   if (!key) {
@@ -76,6 +312,7 @@ async function openTournament(id) {
     selectedRound.value = firstPendingRound()
     votePage.value = 1
     voteFilter.value = 'all'
+    loadPrediction()
     autoFitTree()
     page.value = 'rounds'
     window.location.hash = `/tournament/${id}`
@@ -659,6 +896,10 @@ function confettiStyle(n) {
 
 // ─── Create Tournament with Seeding & Round Config ───
 async function createTournament() {
+  if (!isAdmin.value) {
+    requireAdmin('Tạo giải đấu', createTournament)
+    return
+  }
   error.value = ''
   const songs = parsedSongs.value.map(s => s.raw)
   if (songs.length < 2) { error.value = 'Nhập ít nhất 2 bài hát hợp lệ nhé.'; return }
@@ -721,6 +962,10 @@ async function silentRefresh() {
 // ─── Round Management (Open / Close Voting / Finalize) ───
 async function toggleRoundVoting(roundIndex, currentlyClosed) {
   if (!tournament.value) return
+  if (!isAdmin.value) {
+    requireAdmin('Mở/Đóng bình chọn vòng', () => toggleRoundVoting(roundIndex, currentlyClosed))
+    return
+  }
   const open = currentlyClosed // If closed -> open; if open -> close
   try {
     tournament.value = await api(`/tournaments/${tournament.value.id}/admin/rounds/${roundIndex}/voting?open=${open}`, {
@@ -733,6 +978,10 @@ async function toggleRoundVoting(roundIndex, currentlyClosed) {
 
 async function finalizeRound(roundIndex) {
   if (!tournament.value) return
+  if (!isAdmin.value) {
+    requireAdmin('Chốt kết quả vòng đấu', () => finalizeRound(roundIndex))
+    return
+  }
   if (!confirm(`Xác nhận chốt kết quả ${tournament.value.rounds[roundIndex]?.name}? Người nhiều phiếu hơn sẽ vào vòng tiếp theo.`)) return
   try {
     tournament.value = await api(`/tournaments/${tournament.value.id}/admin/rounds/${roundIndex}/close`, {
@@ -745,6 +994,10 @@ async function finalizeRound(roundIndex) {
 
 async function toggleTournament() {
   if (!tournament.value) return
+  if (!isAdmin.value) {
+    requireAdmin('Đóng/Mở toàn bộ giải', toggleTournament)
+    return
+  }
   try {
     tournament.value = await api(`/tournaments/${tournament.value.id}/admin/status?active=${!tournament.value.active}`, {
       method: 'PUT'
@@ -1017,11 +1270,13 @@ watch(selectedRound, () => {
 let liveTimer = null
 
 onMounted(() => {
+  applyTheme(currentTheme.value)
   loadTournaments()
   checkUrlHash()
+  loadPrediction()
   window.addEventListener('hashchange', checkUrlHash)
   liveTimer = setInterval(() => {
-    if (tournament.value && tournament.value.active && (page.value === 'rounds' || page.value === 'results')) {
+    if (tournament.value && tournament.value.active && (page.value === 'rounds' || page.value === 'results' || page.value === 'leaderboard')) {
       silentRefresh()
     }
   }, 4000)
@@ -1043,6 +1298,21 @@ onUnmounted(() => {
     </div>
     <div class="brand-copy"><h1>Music Tournament</h1><p>Giải đấu bài hát · tìm ra quán quân</p></div>
     <div class="top-spacer"></div><span class="top-slogan">Cùng chọn ra bài hát hay nhất! ♪</span>
+
+    <!-- Theme Toggle (Dark / Light) -->
+    <button class="theme-toggle-btn" @click="toggleTheme" :title="currentTheme==='dark' ? 'Chuyển sang giao diện Sáng (Light)' : 'Chuyển sang giao diện Tối (Dark)'">
+      <span class="theme-icon">{{ currentTheme==='dark' ? '🌙' : '☀️' }}</span>
+      <span class="theme-text">{{ currentTheme==='dark' ? 'Tối' : 'Sáng' }}</span>
+    </button>
+
+    <!-- Role Badge & Admin Login / Logout -->
+    <div class="topbar-role-group">
+      <span v-if="isAdmin" class="role-pill admin-pill" title="Tài khoản Quản trị viên (Admin)">👑 Admin</span>
+      <span v-else class="role-pill guest-pill" title="Chế độ Khách bình chọn (Guest)">👤 Khách</span>
+      <button v-if="isAdmin" class="btn mini-btn role-btn logout-btn" @click="logoutAdmin" title="Đăng xuất chế độ Admin">Đăng xuất</button>
+      <button v-else class="btn mini-btn role-btn login-btn" @click="showLoginModal=true" title="Đăng nhập tài khoản Quản trị">👑 Đăng nhập Admin</button>
+    </div>
+
     <button class="btn top-btn" @click="exportResults" :disabled="!tournament">⇩ Xuất kết quả</button>
   </header>
 
@@ -1060,7 +1330,7 @@ onUnmounted(() => {
           {{ isSidebarCollapsed ? '▶ Mở' : '◀ Thu gọn' }}
         </button>
       </div>
-      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
+      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
         <span>{{ item.icon }}</span><span class="nav-label">{{ item.label }}</span>
       </button>
@@ -1071,7 +1341,7 @@ onUnmounted(() => {
       <div class="page-heading">
         <div>
           <p class="eyebrow">MUSIC TOURNAMENT ENGINE / PRO BRACKETS</p>
-          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='results'?'Kết quả giải đấu':'Quản trị giải đấu' }}</h2>
+          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='results'?'Kết quả giải đấu':'Quản trị giải đấu' }}</h2>
           <p class="muted">Tùy biến nhánh đấu, tải danh sách tốc độ cao và mở/đóng từng vòng bình chọn linh hoạt.</p>
         </div>
         <div class="heading-badges">
@@ -1096,6 +1366,18 @@ onUnmounted(() => {
                 ⑂ 2. Xếp nhánh & cặp đấu ({{ parsedSongs.length }})
               </button>
             </div>
+          </div>
+
+          <!-- GUEST NOTICE IN CREATION PANEL -->
+          <div v-if="!isAdmin" class="guest-mode-notice">
+            <div class="guest-notice-content">
+              <span class="guest-notice-icon">👤</span>
+              <div>
+                <b>Chế độ Khách (Người bình chọn)</b>
+                <p>Bạn đang khám phá với tư cách khán giả. Bạn có thể vote cho bài hát, xem sơ đồ cây & bảng xếp hạng. Để tạo giải đấu hoặc chỉnh sửa cấu hình, hãy đăng nhập Quản trị viên.</p>
+              </div>
+            </div>
+            <button class="btn mini-btn primary" @click="showLoginModal=true">👑 Đăng nhập Admin</button>
           </div>
 
           <!-- TAB 1: FAST INPUT & TOOLBAR -->
@@ -1763,6 +2045,242 @@ onUnmounted(() => {
         </template>
       </section>
 
+      <!-- PAGE: LEADERBOARD -->
+      <section v-else-if="page==='leaderboard'" class="panel leaderboard-panel">
+        <div class="section-head">
+          <div><span class="mini-icon gold">🏆</span><h3>Bảng Xếp Hạng & Hiệu Số Vote</h3></div>
+          <div class="head-actions">
+            <button class="btn soft" @click="refreshCurrent" :disabled="!tournament">↻ Làm mới</button>
+            <button class="btn primary" @click="exportResults" :disabled="!tournament">⇩ Xuất kết quả</button>
+          </div>
+        </div>
+
+        <p v-if="!tournament" class="muted">Hãy chọn một giải đấu từ trang Tổng quan để xem bảng xếp hạng chi tiết.</p>
+        <template v-else>
+          <!-- GUEST CHAMPION PREDICTION WIDGET -->
+          <div class="prediction-card-banner">
+            <div class="prediction-card-head">
+              <span class="prediction-symbol">🔮</span>
+              <div class="prediction-text">
+                <b>Dự đoán Quán quân Giải đấu (Dành cho Khách & Khán giả)</b>
+                <p v-if="predictionSongId">
+                  Lựa chọn của bạn: 
+                  <strong class="prediction-selected-title">
+                    {{ tournament.songs.find(s => s.id === predictionSongId)?.title || 'Bài hát đã chọn' }}
+                  </strong>
+                  <span v-if="champion && champion.id === predictionSongId" class="pred-tag pred-win">
+                    🎉 BẠN ĐÃ DỰ ĐOÁN CHÍNH XÁC!
+                  </span>
+                  <span v-else-if="champion && champion.id !== predictionSongId" class="pred-tag pred-lose">
+                    Đã dừng bước
+                  </span>
+                </p>
+                <p v-else class="muted small">Bạn dự đoán bài hát nào sẽ đăng quang ngôi vị quán quân? Hãy chọn bài hát bên dưới:</p>
+              </div>
+            </div>
+            <div class="prediction-card-control">
+              <select :value="predictionSongId" @change="setPrediction(Number($event.target.value))" class="prediction-select">
+                <option :value="0">-- Chọn bài hát dự đoán Quán quân --</option>
+                <option v-for="s in tournament.songs" :key="s.id" :value="s.id">
+                  {{ s.title }} ({{ s.artist || '—' }})
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TOP 3 PODIUM SECTION -->
+          <div v-if="podiumSongs.length >= 2" class="podium-wrapper">
+            <div class="podium-header-badge">
+              <span>✨ BỤC VINH QUANG TOP 3 ✨</span>
+            </div>
+
+            <div class="podium-stage">
+              <!-- RANK 2: SILVER (BÊN TRÁI) -->
+              <div v-if="podiumSongs[1]" class="podium-pedestal-group silver-group">
+                <div class="podium-card silver-card">
+                  <div class="podium-medal-badge silver-badge">🥈 2</div>
+                  <div class="podium-cover-box">
+                    <img :src="getSongArtwork(podiumSongs[1].song)" :alt="podiumSongs[1].song.title" class="podium-thumb" @error="handleImgError($event)">
+                    <button v-if="podiumSongs[1].song.link" class="podium-play-trigger" :class="{spotifyBtn: isSpotifyLink(podiumSongs[1].song.link)}" @click="playSong(podiumSongs[1].song)">
+                      {{ isSpotifyLink(podiumSongs[1].song.link) ? '🟢' : '▶' }}
+                    </button>
+                  </div>
+                  <b class="podium-title-text" :title="podiumSongs[1].song.title">{{ podiumSongs[1].song.title }}</b>
+                  <small class="podium-artist-text">{{ podiumSongs[1].song.artist || '—' }}</small>
+                  <div class="podium-round-tag">{{ podiumSongs[1].furthestStage }}</div>
+                  <div class="podium-diff-pill" :class="{diffPos: podiumSongs[1].voteDiff > 0, diffNeg: podiumSongs[1].voteDiff < 0}">
+                    Hiệu số: {{ podiumSongs[1].voteDiff > 0 ? '+' + podiumSongs[1].voteDiff : podiumSongs[1].voteDiff }}
+                  </div>
+                </div>
+                <div class="podium-step step-2">
+                  <span>Á QUÂN</span>
+                </div>
+              </div>
+
+              <!-- RANK 1: GOLD (CHÍNH GIỮA, CAO NHẤT) -->
+              <div v-if="podiumSongs[0]" class="podium-pedestal-group gold-group">
+                <div class="podium-crown-icon">👑</div>
+                <div class="podium-card gold-card">
+                  <div class="podium-medal-badge gold-badge">🥇 1</div>
+                  <div class="podium-cover-box gold-cover">
+                    <img :src="getSongArtwork(podiumSongs[0].song)" :alt="podiumSongs[0].song.title" class="podium-thumb" @error="handleImgError($event)">
+                    <button v-if="podiumSongs[0].song.link" class="podium-play-trigger" :class="{spotifyBtn: isSpotifyLink(podiumSongs[0].song.link)}" @click="playSong(podiumSongs[0].song)">
+                      {{ isSpotifyLink(podiumSongs[0].song.link) ? '🟢' : '▶' }}
+                    </button>
+                  </div>
+                  <b class="podium-title-text gold-text" :title="podiumSongs[0].song.title">{{ podiumSongs[0].song.title }}</b>
+                  <small class="podium-artist-text">{{ podiumSongs[0].song.artist || '—' }}</small>
+                  <div class="podium-round-tag gold-round">{{ podiumSongs[0].furthestStage }}</div>
+                  <div class="podium-diff-pill diffPos">
+                    Hiệu số: {{ podiumSongs[0].voteDiff > 0 ? '+' + podiumSongs[0].voteDiff : podiumSongs[0].voteDiff }}
+                  </div>
+                </div>
+                <div class="podium-step step-1">
+                  <span>QUÁN QUÂN 🏆</span>
+                </div>
+              </div>
+
+              <!-- RANK 3: BRONZE (BÊN PHẢI) -->
+              <div v-if="podiumSongs[2]" class="podium-pedestal-group bronze-group">
+                <div class="podium-card bronze-card">
+                  <div class="podium-medal-badge bronze-badge">🥉 3</div>
+                  <div class="podium-cover-box">
+                    <img :src="getSongArtwork(podiumSongs[2].song)" :alt="podiumSongs[2].song.title" class="podium-thumb" @error="handleImgError($event)">
+                    <button v-if="podiumSongs[2].song.link" class="podium-play-trigger" :class="{spotifyBtn: isSpotifyLink(podiumSongs[2].song.link)}" @click="playSong(podiumSongs[2].song)">
+                      {{ isSpotifyLink(podiumSongs[2].song.link) ? '🟢' : '▶' }}
+                    </button>
+                  </div>
+                  <b class="podium-title-text" :title="podiumSongs[2].song.title">{{ podiumSongs[2].song.title }}</b>
+                  <small class="podium-artist-text">{{ podiumSongs[2].song.artist || '—' }}</small>
+                  <div class="podium-round-tag">{{ podiumSongs[2].furthestStage }}</div>
+                  <div class="podium-diff-pill" :class="{diffPos: podiumSongs[2].voteDiff > 0, diffNeg: podiumSongs[2].voteDiff < 0}">
+                    Hiệu số: {{ podiumSongs[2].voteDiff > 0 ? '+' + podiumSongs[2].voteDiff : podiumSongs[2].voteDiff }}
+                  </div>
+                </div>
+                <div class="podium-step step-3">
+                  <span>BÁN KẾT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONTROLS & SEARCH BAR -->
+          <div class="leaderboard-toolbar">
+            <div class="lb-search-container">
+              <span class="lb-search-ico">🔍</span>
+              <input v-model="leaderboardSearch" placeholder="Tìm kiếm bài hát, ca sĩ..." class="lb-search-input">
+            </div>
+
+            <div class="lb-filter-sort-group">
+              <span class="lb-sort-caption">Sắp xếp:</span>
+              <div class="lb-sort-pills">
+                <button class="lb-pill" :class="{active: leaderboardSort==='rank'}" @click="leaderboardSort='rank'" title="Thứ hạng giải đấu từ Quán quân, Á quân đến các vòng trước">
+                  🏆 Thứ hạng giải
+                </button>
+                <button class="lb-pill" :class="{active: leaderboardSort==='diff'}" @click="leaderboardSort='diff'" title="Sắp theo hiệu số vote cao nhất">
+                  ± Hiệu số vote
+                </button>
+                <button class="lb-pill" :class="{active: leaderboardSort==='votes'}" @click="leaderboardSort='votes'" title="Sắp theo tổng số vote nhận được">
+                  🗳 Tổng số vote
+                </button>
+                <button class="lb-pill" :class="{active: leaderboardSort==='winrate'}" @click="leaderboardSort='winrate'" title="Sắp theo tỷ lệ chiến thắng">
+                  ⚡ Tỷ lệ thắng
+                </button>
+              </div>
+
+              <button class="lb-fav-toggle-btn" :class="{active: leaderboardFavOnly}" @click="leaderboardFavOnly = !leaderboardFavOnly" title="Xem danh sách bài hát bạn đã bấm tim">
+                {{ leaderboardFavOnly ? '❤️ Bài đã thích' : '♡ Bài yêu thích' }} ({{ favoriteSongIds.length }})
+              </button>
+            </div>
+          </div>
+
+          <!-- LEADERBOARD TABLE -->
+          <div class="leaderboard-table-wrapper">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">Hạng</th>
+                  <th class="col-song">Bài hát & Nghệ sĩ</th>
+                  <th class="col-stage">Vòng cao nhất</th>
+                  <th class="col-record">Thành tích</th>
+                  <th class="col-for">Phiếu nhận</th>
+                  <th class="col-against">Đối thủ</th>
+                  <th class="col-diff">Hiệu số (±)</th>
+                  <th class="col-ratio">Tỷ lệ phiếu</th>
+                  <th class="col-actions">Tương tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!computedLeaderboard.length">
+                  <td colspan="9" class="lb-empty-text">Không tìm thấy bài hát nào phù hợp.</td>
+                </tr>
+                <tr v-for="item in computedLeaderboard" :key="item.song.id" class="lb-data-row" :class="{isChampRow: item.tier===1, isFavRow: isFavorite(item.song.id)}">
+                  <td class="col-rank">
+                    <span class="rank-number-pill" :class="'rank-style-' + item.rank">
+                      {{ item.rank === 1 ? '🥇 1' : item.rank === 2 ? '🥈 2' : item.rank === 3 ? '🥉 3' : item.rank }}
+                    </span>
+                  </td>
+                  <td class="col-song">
+                    <div class="lb-song-media">
+                      <div class="lb-artwork-box">
+                        <img :src="getSongArtwork(item.song)" :alt="item.song.title" class="lb-cover-img" @error="handleImgError($event)">
+                      </div>
+                      <div class="lb-song-details">
+                        <b class="lb-song-title">
+                          {{ item.song.title }}
+                          <span v-if="isWildcardSong(item.song.id)" class="song-wc-badge" title="Đặc cách Wildcard">⭐</span>
+                        </b>
+                        <small class="lb-song-artist">{{ item.song.artist || 'Chưa nhập nghệ sĩ' }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="col-stage">
+                    <span class="stage-name-pill" :class="{goldStage: item.tier===1, silverStage: item.tier===2, bronzeStage: item.tier===3}">
+                      {{ item.furthestStage }}
+                    </span>
+                  </td>
+                  <td class="col-record">
+                    <div class="record-box">
+                      <b>{{ item.wins }}W - {{ item.losses }}L</b>
+                      <small>{{ item.winRatePercent }}% thắng</small>
+                    </div>
+                  </td>
+                  <td class="col-for">
+                    <span class="votes-for-count">{{ item.votesFor }}</span>
+                  </td>
+                  <td class="col-against">
+                    <span class="votes-against-count">{{ item.votesAgainst }}</span>
+                  </td>
+                  <td class="col-diff">
+                    <span class="vote-diff-chip" :class="{diffPosChip: item.voteDiff > 0, diffNegChip: item.voteDiff < 0, diffZeroChip: item.voteDiff === 0}">
+                      {{ item.voteDiff > 0 ? '+' + item.voteDiff : item.voteDiff }}
+                    </span>
+                  </td>
+                  <td class="col-ratio">
+                    <div class="ratio-progress-box">
+                      <span class="ratio-percent-text">{{ item.voteRatioPercent }}%</span>
+                      <div class="ratio-track">
+                        <div class="ratio-fill" :style="{width: item.voteRatioPercent + '%'}"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="col-actions">
+                    <div class="lb-actions-cell">
+                      <button class="favorite-heart-btn" :class="{favorited: isFavorite(item.song.id)}" @click="toggleFavorite(item.song.id)" :title="isFavorite(item.song.id) ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'">
+                        {{ isFavorite(item.song.id) ? '❤️' : '♡' }}
+                      </button>
+                      <button v-if="item.song.link" class="btn mini-btn lb-listen-btn" :class="{spotifyBtn: isSpotifyLink(item.song.link)}" @click="playSong(item.song)" :title="isSpotifyLink(item.song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                        {{ isSpotifyLink(item.song.link) ? '🟢' : '▶' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </section>
+
       <!-- PAGE: RESULTS -->
       <section v-else-if="page==='results'" class="panel">
         <div class="section-head"><div><span class="mini-icon">🏆</span><h3>Bảng kết quả</h3></div><button class="btn primary" @click="exportResults" :disabled="!tournament">⇩ Xuất TXT</button></div>
@@ -1890,6 +2408,53 @@ onUnmounted(() => {
         <div class="share-copy-row">
           <input :value="shareUrl" readonly class="share-url-box">
           <button class="btn primary" @click="copyShareLink">Sao chép</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP ADMIN LOGIN MODAL -->
+  <div v-if="showLoginModal" class="modal-overlay" @click.self="showLoginModal=false">
+    <div class="admin-login-modal">
+      <div class="player-modal-header">
+        <div class="login-modal-title">
+          <span class="admin-crown-icon">👑</span>
+          <div>
+            <h4>Đăng nhập Quản trị viên (Admin)</h4>
+            <p class="muted small">Truy cập toàn quyền tạo giải đấu, mở/đóng từng vòng và chốt kết quả.</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" @click="showLoginModal=false">✕</button>
+      </div>
+      <div class="admin-login-body">
+        <div v-if="loginError" class="alert error login-error">
+          <span>⚠</span>{{ loginError }}
+        </div>
+        <div class="login-form-group">
+          <label>Mã token / Mật khẩu Quản trị:</label>
+          <input 
+            v-model="adminPasswordInput" 
+            type="password" 
+            placeholder="Nhập mã token (mặc định: admin-demo-2026)" 
+            class="admin-password-box"
+            @keyup.enter="loginAdmin()"
+          >
+        </div>
+        <div class="login-modal-buttons">
+          <button class="btn primary login-submit-btn" @click="loginAdmin()">
+            ✓ Xác nhận Đăng nhập
+          </button>
+          <button class="btn soft quick-login-btn" @click="quickLoginAdmin">
+            ⚡ Đăng nhập nhanh Demo (admin-demo-2026)
+          </button>
+          <button class="btn cancel-btn" @click="showLoginModal=false">
+            Hủy bỏ
+          </button>
+        </div>
+        <div class="login-role-tip">
+          <b>💡 Phân quyền tài khoản:</b>
+          <p>• <b>Khách (Guest)</b>: Xem giải đấu, bình chọn vote, xem sơ đồ cây & thu phóng, xem bảng xếp hạng & hiệu số, dự đoán Quán quân, nghe thử nhạc, lưu bài yêu thích ❤️, chia sẻ link & quét mã QR.</p>
+          <p>• <b>Admin (Quản trị viên)</b>: Toàn bộ quyền của Khách + Tạo giải đấu mới, nạp bài hàng loạt (Excel/Sheets/YouTube/Spotify), mở/đóng bình chọn từng vòng, chốt kết quả vòng & đóng/mở toàn bộ giải.</p>
         </div>
       </div>
     </div>

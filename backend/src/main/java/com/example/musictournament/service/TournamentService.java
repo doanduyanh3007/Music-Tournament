@@ -376,6 +376,130 @@ public class TournamentService {
     @Transactional(readOnly = true)
     public Map<String, Object> results(Long id) { return detail(id, null); }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> leaderboard(Long id) {
+        Tournament t = tournaments.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
+        List<TournamentMatch> allMatches = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(id);
+        int totalRounds = allMatches.stream().mapToInt(TournamentMatch::getRoundIndex).max().orElse(0) + 1;
+        Song champ = allMatches.stream()
+                .filter(m -> m.getRoundIndex() == totalRounds - 1)
+                .map(TournamentMatch::getWinner)
+                .filter(Objects::nonNull)
+                .findFirst().orElse(null);
+
+        class SongStat {
+            final Song song;
+            int matchesPlayed = 0;
+            int wins = 0;
+            int losses = 0;
+            long votesFor = 0;
+            long votesAgainst = 0;
+            int furthestRound = 0;
+            String furthestStage = "Vòng 1";
+            int tier = 99;
+
+            SongStat(Song song) { this.song = song; }
+        }
+
+        Map<Long, SongStat> stats = new HashMap<>();
+        for (Song s : t.getSongs()) {
+            stats.put(s.getId(), new SongStat(s));
+        }
+
+        for (TournamentMatch m : allMatches) {
+            Song a = m.getSongA();
+            Song b = m.getSongB();
+            if (a == null || b == null) continue;
+            long vA = votes.countByMatchIdAndSongId(m.getId(), a.getId());
+            long vB = votes.countByMatchIdAndSongId(m.getId(), b.getId());
+
+            SongStat statA = stats.get(a.getId());
+            if (statA != null) {
+                statA.matchesPlayed++;
+                statA.votesFor += vA;
+                statA.votesAgainst += vB;
+                if (m.getWinner() != null) {
+                    if (m.getWinner().getId().equals(a.getId())) statA.wins++;
+                    else statA.losses++;
+                }
+                if (m.getRoundIndex() >= statA.furthestRound) {
+                    statA.furthestRound = m.getRoundIndex();
+                    statA.furthestStage = roundName(m.getRoundIndex(), totalRounds, t.getSongs().size());
+                }
+            }
+
+            SongStat statB = stats.get(b.getId());
+            if (statB != null) {
+                statB.matchesPlayed++;
+                statB.votesFor += vB;
+                statB.votesAgainst += vA;
+                if (m.getWinner() != null) {
+                    if (m.getWinner().getId().equals(b.getId())) statB.wins++;
+                    else statB.losses++;
+                }
+                if (m.getRoundIndex() >= statB.furthestRound) {
+                    statB.furthestRound = m.getRoundIndex();
+                    statB.furthestStage = roundName(m.getRoundIndex(), totalRounds, t.getSongs().size());
+                }
+            }
+        }
+
+        for (SongStat st : stats.values()) {
+            if (champ != null && st.song.getId().equals(champ.getId())) {
+                st.tier = 1;
+                st.furthestStage = "Quán quân 🏆";
+            } else if (st.furthestRound == totalRounds - 1) {
+                st.tier = 2;
+                st.furthestStage = "Á quân 🥈";
+            } else if (st.furthestRound == totalRounds - 2) {
+                st.tier = 3;
+                st.furthestStage = "Bán kết 🥉";
+            } else if (st.furthestRound == totalRounds - 3) {
+                st.tier = 4;
+                st.furthestStage = "Tứ kết";
+            } else {
+                st.tier = 100 - st.furthestRound;
+            }
+        }
+
+        List<SongStat> list = new ArrayList<>(stats.values());
+        list.sort((x, y) -> {
+            int cTier = Integer.compare(x.tier, y.tier);
+            if (cTier != 0) return cTier;
+            long diffX = x.votesFor - x.votesAgainst;
+            long diffY = y.votesFor - y.votesAgainst;
+            int cDiff = Long.compare(diffY, diffX);
+            if (cDiff != 0) return cDiff;
+            int cVotes = Long.compare(y.votesFor, x.votesFor);
+            if (cVotes != 0) return cVotes;
+            return Integer.compare(y.wins, x.wins);
+        });
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        int rank = 1;
+        for (SongStat st : list) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("rank", rank++);
+            m.put("song", songDto(st.song));
+            m.put("furthestStage", st.furthestStage);
+            m.put("furthestRound", st.furthestRound);
+            m.put("tier", st.tier);
+            m.put("matchesPlayed", st.matchesPlayed);
+            m.put("wins", st.wins);
+            m.put("losses", st.losses);
+            m.put("votesFor", st.votesFor);
+            m.put("votesAgainst", st.votesAgainst);
+            m.put("voteDiff", st.votesFor - st.votesAgainst);
+            long totalVotesInMatches = st.votesFor + st.votesAgainst;
+            double voteRatio = totalVotesInMatches > 0 ? ((double) st.votesFor / totalVotesInMatches) * 100.0 : 0.0;
+            m.put("voteRatioPercent", Math.round(voteRatio * 10.0) / 10.0);
+            double winRate = st.matchesPlayed > 0 ? ((double) st.wins / st.matchesPlayed) * 100.0 : 0.0;
+            m.put("winRatePercent", Math.round(winRate * 10.0) / 10.0);
+            out.add(m);
+        }
+        return out;
+    }
+
     /**
      * THUẬT TOÁN ĐIỀU CHUYỂN BÀI THẮNG & XÉT ĐẶC CÁCH CHÍNH XÁC
      */

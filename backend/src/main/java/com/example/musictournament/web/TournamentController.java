@@ -37,4 +37,17 @@ public class TournamentController {
     public Map<String,Object> endTime(@PathVariable Long id,@RequestBody EndTimeRequest req){return service.setEndTime(id,req.endTime());}
     @PutMapping("/tournaments/{id}/admin/status")
     public Map<String,Object> status(@PathVariable Long id,@RequestParam boolean active){return service.setActive(id,active);}
+    @PostMapping("/admin/verify")
+    public Map<String, Object> verifyAdmin(@RequestBody(required = false) Map<String, String> body) {
+        String token = body != null ? body.get("token") : null;
+        if (token != null && token.trim().equals(adminToken.trim())) {
+            return Map.of("valid", true, "role", "ADMIN", "message", "Xác thực quản trị viên thành công!");
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mã quản trị viên không chính xác.");
+    }
+
+    @GetMapping("/tournaments/{id}/leaderboard")
+    public List<Map<String, Object>> leaderboard(@PathVariable Long id) {
+        return service.leaderboard(id);
+    }
 }
