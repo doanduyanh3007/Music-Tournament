@@ -24,6 +24,10 @@ public class TournamentMatch {
     private Song winner;
     @Column(nullable = false)
     private boolean closed = false;
+    @Column(length = 20)
+    private String groupName; // 'A', 'B', 'PLAYOFF', 'MAIN'
+    @Column(name = "is_wildcard", columnDefinition = "boolean default false")
+    private boolean isWildcard = false;
     @OneToMany(mappedBy = "match", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Vote> votes = new ArrayList<>();
 
@@ -43,5 +47,9 @@ public class TournamentMatch {
     public void setWinner(Song winner){this.winner=winner;}
     public boolean isClosed(){return closed;}
     public void setClosed(boolean closed){this.closed=closed;}
+    public String getGroupName(){return groupName;}
+    public void setGroupName(String groupName){this.groupName=groupName;}
+    public boolean isWildcard(){return isWildcard;}
+    public void setWildcard(boolean wildcard){this.isWildcard=wildcard;}
     public List<Vote> getVotes(){return votes;}
 }

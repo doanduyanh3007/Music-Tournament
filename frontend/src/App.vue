@@ -127,21 +127,17 @@ const parsedSongs = computed(() => {
 const bracketStats = computed(() => {
   const count = parsedSongs.value.length
   if (count < 2) return null
-  if (count >= 48) {
-    const half1 = Math.floor(count / 2)
-    const half2 = count - half1
-    const matchesRound1 = Math.ceil(half1 / 2)
-    const matchesRound2 = Math.ceil(half2 / 2)
-    return { count, isSplit: true, half1, half2, matchesRound1, matchesRound2 }
+  if (count === 48) {
+    return { count, is48: true, groupSize: 24, matchesPerGroup: 12, playoffMatches: 12, finalEntrants: 8 }
   }
   let size = 1
   while (size < count) size *= 2
   const byes = size - count
   const rounds = Math.log2(size)
-  return { count, isSplit: false, size, byes, rounds }
+  return { count, is48: false, size, byes, rounds }
 })
 
-// Preview of Initial Pairings (Vòng 1 hoặc Vòng loại 1 & 2)
+// Preview of Initial Pairings (Bảng A & B khi 48 bài hoặc Cây chuẩn)
 const previewPairings = computed(() => {
   const songs = [...parsedSongs.value]
   if (songs.length < 2) return []
@@ -149,40 +145,41 @@ const previewPairings = computed(() => {
   const pairs = []
   let pos = 1
 
-  if (count >= 48) {
-    // Chia 2 vòng loại
-    const half1 = Math.floor(count / 2)
-    const group1 = songs.slice(0, half1)
-    const group2 = songs.slice(half1)
+  if (count === 48) {
+    // Chia 2 Bảng A và B: Mỗi bảng 24 bài (12 trận)
+    const groupA = songs.slice(0, 24)
+    const groupB = songs.slice(24, 48)
 
-    // Nhóm 1: Vòng loại 1
-    for (let i = 0; i < group1.length; i += 2) {
+    // Bảng A (12 trận)
+    for (let i = 0; i < groupA.length; i += 2) {
       pairs.push({
         num: pos++,
-        roundLabel: 'Vòng loại 1',
-        songA: group1[i],
-        songB: i + 1 < group1.length ? group1[i + 1] : null,
-        isBye: i + 1 >= group1.length,
+        roundLabel: 'BẢNG A',
+        groupName: 'A',
+        songA: groupA[i],
+        songB: groupA[i + 1] || null,
+        isBye: false,
         indexA: i,
-        indexB: i + 1 < group1.length ? i + 1 : -1
+        indexB: i + 1
       })
     }
-    // Nhóm 2: Vòng loại 2
-    for (let i = 0; i < group2.length; i += 2) {
+    // Bảng B (12 trận)
+    for (let i = 0; i < groupB.length; i += 2) {
       pairs.push({
         num: pos++,
-        roundLabel: 'Vòng loại 2',
-        songA: group2[i],
-        songB: i + 1 < group2.length ? group2[i + 1] : null,
-        isBye: i + 1 >= group2.length,
-        indexA: half1 + i,
-        indexB: i + 1 < group2.length ? half1 + i + 1 : -1
+        roundLabel: 'BẢNG B',
+        groupName: 'B',
+        songA: groupB[i],
+        songB: groupB[i + 1] || null,
+        isBye: false,
+        indexA: 24 + i,
+        indexB: 24 + i + 1
       })
     }
     return pairs
   }
 
-  // Chuẩn <= 48 bài
+  // Chuẩn các số lượng bài khác (32, 16, 8, hoặc lẻ có byes)
   let size = 1
   while (size < count) size *= 2
   const byes = size - count
@@ -325,6 +322,58 @@ Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
       'DADDY ! DADDY ! DO ! — Masayuki Suzuki feat. Airi Suzuki'
     ]
     songText.value = base.join('\n')
+  } else if (count === 48) {
+    const list48 = [
+      'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
+      'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
+      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
+      'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
+      'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
+      'Again — YUI | https://youtu.be/2DYYVp4QXew',
+      'Cry Baby — Official HIGE DANdism | https://youtu.be/O1bhZgkC4Gw',
+      'KICK BACK — Kenshi Yonezu | https://youtu.be/M2cckDmNLMI',
+      'Shinunoga E-Wa — Fujii Kaze | https://youtu.be/dusrG66olzo',
+      'Bling-Bang-Bang-Born — Creepy Nuts | https://youtu.be/mLW35YMz1eo',
+      'Suzume — RADWIMPS feat. Toaka | https://youtu.be/grasqUvQ2X0',
+      'SPECIALZ — King Gnu | https://youtu.be/fhzKLBZJC3w',
+      'Nandemonaiya — RADWIMPS | https://youtu.be/n3e6M521rso',
+      'Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k',
+      'Racing Into The Night (Yoru ni Kakeru) — YOASOBI',
+      'Monster — YOASOBI',
+      'Chouchou Musubi — Aimer',
+      'Zankyosanka — Aimer',
+      'Crossing Field — LiSA',
+      'Catch the Moment — LiSA',
+      'Inferno — Mrs. GREEN APPLE',
+      'Ao to Natsu — Mrs. GREEN APPLE',
+      'Peace Sign — Kenshi Yonezu',
+      'Grand Escape — RADWIMPS feat. Toko Miura',
+      'Otonablue — ATARASHII GAKKO!',
+      'Kaibutsu — YOASOBI',
+      'First Love — Hikaru Utada',
+      'One Last Kiss — Hikaru Utada',
+      'Homura — LiSA',
+      'DADDY ! DADDY ! DO ! — Masayuki Suzuki feat. Airi Suzuki',
+      'Shunkan Sentimental — SCANDAL',
+      'Haruka Kanata — ASIAN KUNG-FU GENERATION',
+      'GO!!! — FLOW',
+      'Sign — FLOW',
+      'Colors — FLOW',
+      'The Rumbling — SiM',
+      'Red Swan — YOSHIKI feat. HYDE',
+      'Boku no Sensou — Shinsei Kamattechan',
+      'Akuma no Ko — Ai Higuchi',
+      'Fiction — sumika',
+      'Kibou no Uta — Ultra Tower',
+      'Fly High!! — BURNOUT SYNDROMES',
+      'Hikariare — BURNOUT SYNDROMES',
+      'Phantom Minds — Nana Mizuki',
+      'Renai Circulation — Kana Hanazawa',
+      'Sugar Song to Bitter Step — UNISON SQUARE GARDEN'
+    ]
+    songText.value = list48.join('\n')
   }
   flash(`Đã nạp bộ mẫu chuẩn ${count} bài!`)
 }
@@ -496,6 +545,12 @@ const completedMatches = computed(() => (tournament.value?.rounds || []).flatMap
 const totalMatches = computed(() => (tournament.value?.rounds || []).flatMap(r => r.matches).filter(m => m.songA && m.songB).length)
 const progress = computed(() => totalMatches.value ? Math.round(completedMatches.value / totalMatches.value * 100) : 0)
 
+// Check if a song won a wildcard entry
+function isWildcardSong(songId) {
+  if (!songId || !tournament.value?.wildcards) return false
+  return tournament.value.wildcards.some(w => w.song?.id === songId)
+}
+
 // World Cup style two-sided Bracket Layout (Nhánh Trái ➔ Chung kết ở Giữa ➔ Nhánh Phải)
 const worldCupBracket = computed(() => {
   const rounds = tournament.value?.rounds || []
@@ -505,11 +560,12 @@ const worldCupBracket = computed(() => {
     return { isSplit: false, rounds }
   }
 
+  const is48 = tournament.value?.songs?.length === 48
   const finalRound = rounds[numRounds - 1]
   const leftColumns = []
   const rightColumns = []
 
-  // Các vòng từ 0 đến numRounds - 2 chia 2 nửa: Trái (A) & Phải (B)
+  // Các vòng từ 0 đến numRounds - 2 chia 2 nửa: Trái & Phải
   for (let r = 0; r < numRounds - 1; r++) {
     const round = rounds[r]
     const allMatches = round.matches.filter(m => m.songA || m.songB)
@@ -517,9 +573,42 @@ const worldCupBracket = computed(() => {
     const leftMatches = allMatches.slice(0, mid)
     const rightMatches = allMatches.slice(mid)
 
+    let leftName = round.name
+    let rightName = round.name
+
+    if (is48) {
+      if (r === 0) {
+        leftName = 'Bảng A Vòng 1 (12 cặp)'
+        rightName = 'Bảng B Vòng 1 (12 cặp)'
+      } else if (r === 1) {
+        leftName = 'Bảng A Vòng 2 (6 cặp)'
+        rightName = 'Bảng B Vòng 2 (6 cặp)'
+      } else if (r === 2) {
+        leftName = 'Play-off (3 cặp Trái)'
+        rightName = 'Play-off (3 cặp Phải)'
+      } else if (r === 3) {
+        leftName = 'Tứ kết (Trái)'
+        rightName = 'Tứ kết (Phải)'
+      } else if (r === 4) {
+        leftName = 'Bán kết 1'
+        rightName = 'Bán kết 2'
+      }
+    } else {
+      if (r === numRounds - 2) {
+        leftName = 'Bán kết 1'
+        rightName = 'Bán kết 2'
+      } else if (r === numRounds - 3) {
+        leftName = 'Tứ kết (Trái)'
+        rightName = 'Tứ kết (Phải)'
+      } else {
+        leftName = `${round.name} (Trái)`
+        rightName = `${round.name} (Phải)`
+      }
+    }
+
     leftColumns.push({
       roundIndex: round.index,
-      name: round.name,
+      name: leftName,
       closed: round.closed,
       completed: round.completed,
       matches: leftMatches,
@@ -528,7 +617,7 @@ const worldCupBracket = computed(() => {
 
     rightColumns.push({
       roundIndex: round.index,
-      name: round.name,
+      name: rightName,
       closed: round.closed,
       completed: round.completed,
       matches: rightMatches,
@@ -635,15 +724,16 @@ onUnmounted(() => {
                 <button class="btn mini-btn" @click="loadPreset(8)">8 bài</button>
                 <button class="btn mini-btn" @click="loadPreset(16)">16 bài</button>
                 <button class="btn mini-btn" @click="loadPreset(32)">32 bài</button>
+                <button class="btn mini-btn" @click="loadPreset(48)">48 bài (A/B + Wildcard)</button>
               </div>
               <button v-if="parsedSongs.length > 1" class="btn mini-btn" @click="shuffleSongList" title="Xáo trộn danh sách bài">🔀 Xáo trộn</button>
             </div>
 
             <label class="textarea-label">
               <span>Danh sách bài hát <span class="muted small">(mỗi dòng 1 bài: Tên — Nghệ sĩ | link YouTube/Spotify hoặc copy từ Excel)</span></span>
-              <span v-if="bracketStats" class="bracket-badge" :class="{perfect:!bracketStats.isSplit && bracketStats.byes===0}">
-                <template v-if="bracketStats.isSplit">
-                  ⚡ {{ bracketStats.count }} bài (≥ 48 bài) ➔ Tự động chia 2 vòng: Vòng loại 1 ({{ bracketStats.half1 }} bài/{{ bracketStats.matchesRound1 }} trận) & Vòng loại 2 ({{ bracketStats.half2 }} bài/{{ bracketStats.matchesRound2 }} trận)
+              <span v-if="bracketStats" class="bracket-badge" :class="{perfect: bracketStats.is48 || bracketStats.byes===0}">
+                <template v-if="bracketStats.is48">
+                  ⚡ 48 bài ➔ Chia Bảng A & B (mỗi bảng 24 bài / 12 trận) ➔ Play-off ➔ Tứ kết (6 thắng + 2 vé đặc cách Wildcard)
                 </template>
                 <template v-else>
                   {{ bracketStats.count }} bài ➔ Nhánh {{ bracketStats.size }} ({{ bracketStats.byes === 0 ? 'Chuẩn nhánh, 0 vé vào thẳng' : bracketStats.byes + ' vé vào thẳng' }})
@@ -823,6 +913,33 @@ onUnmounted(() => {
             </div>
           </div>
 
+          <!-- WILDCARD BANNER (KHI CÓ BÀI ĐẶC CÁCH VÀO TỨ KẾT) -->
+          <div v-if="tournament.wildcards && tournament.wildcards.length > 0" class="wildcard-history-banner">
+            <div class="wildcard-history-header">
+              <span class="wildcard-trophy-icon">⭐</span>
+              <div>
+                <h4>VÉ ĐẶC CÁCH VÀO TỨ KẾT (WILDCARD)</h4>
+                <p>2 bài hát thua ở Play-off có thành tích cao nhất được đặc cách vào vòng Tứ kết</p>
+              </div>
+            </div>
+            <div class="wildcard-cards-grid">
+              <div v-for="(wc, idx) in tournament.wildcards" :key="idx" class="wildcard-item-card">
+                <div class="wc-badge-num">Hạng {{ idx + 1 }}</div>
+                <div class="wc-song-info">
+                  <b>{{ wc.song?.title }}</b>
+                  <small>{{ wc.song?.artist || '—' }}</small>
+                </div>
+                <div class="wc-stats-col">
+                  <span class="wc-ratio-val">{{ wc.voteRatioPercent ? wc.voteRatioPercent.toFixed(1) : 0 }}%</span>
+                  <span class="wc-votes-text">{{ wc.votesReceived }} / {{ wc.totalMatchVotes }} phiếu</span>
+                </div>
+                <button v-if="wc.song?.link" class="btn mini-btn" :class="{spotifyBtn: isSpotifyLink(wc.song.link)}" @click="playSong(wc.song)" :title="isSpotifyLink(wc.song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'">
+                  {{ isSpotifyLink(wc.song.link) ? '🟢 Nghe' : '▶ Nghe' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- MODE 1: TABS VIEW -->
           <div v-if="viewMode==='tabs'">
             <div class="round-tabs">
@@ -851,6 +968,7 @@ onUnmounted(() => {
               <article v-for="match in currentRound.matches.filter(m=>m.songA||m.songB)" :key="match.id" class="match-card" :class="{matchLocked:match.closed}">
                 <div class="match-top">
                   <span>TRẬN {{ match.position+1 }}</span>
+                  <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Vé đặc cách</span>
                   <span v-if="match.winner" class="match-state won">✓ Đã có kết quả</span>
                   <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
                   <span v-else class="match-state live">● Đang vote</span>
@@ -859,7 +977,7 @@ onUnmounted(() => {
                   <template v-if="song">
                     <span class="song-cover">♫</span>
                     <div class="song-meta">
-                      <b>{{ song.title }}</b>
+                      <b>{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách Wildcard">⭐</span></b>
                       <small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small>
                       <div class="vote-bar"><i :style="{width:((match['votes'+(side===0?'A':'B')]+1)/(match.votesA+match.votesB+2)*100)+'%'}"></i></div>
                     </div>
@@ -904,6 +1022,7 @@ onUnmounted(() => {
                     <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
                       <div class="tree-match-header">
                         <span>#{{ match.position + 1 }}</span>
+                        <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Đặc cách</span>
                         <span v-if="match.winner" class="mini-status won">✓ Xong</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
@@ -911,7 +1030,7 @@ onUnmounted(() => {
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }}</b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
@@ -958,7 +1077,7 @@ onUnmounted(() => {
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }}</b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
@@ -992,6 +1111,7 @@ onUnmounted(() => {
                     <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
                       <div class="tree-match-header">
                         <span>#{{ match.position + 1 }}</span>
+                        <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Đặc cách</span>
                         <span v-if="match.winner" class="mini-status won">✓ Xong</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
@@ -999,7 +1119,7 @@ onUnmounted(() => {
                       <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
                         <template v-if="song">
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }}</b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
