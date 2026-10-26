@@ -16,6 +16,11 @@ Website bình chọn bài hát theo thể thức loại trực tiếp.
 - Tự chuyển người thắng sang vòng tiếp theo; xử lý số bài không phải lũy thừa của 2
 - Quản trị viên có thể mở/đóng vòng và đặt thời gian kết thúc
 - Xem kết quả, quán quân
+- Đặt tên hiển thị (1–50 ký tự), ghi nhớ trên trình duyệt; nhập lý do vote tùy chọn (tối đa 1.000 ký tự) trước khi xác nhận
+- Xem chi tiết mỗi cặp: người vote, bài đã chọn, lý do và thời điểm; 10 phiếu mỗi trang
+- Bảng xếp hạng người chơi theo từng giải: tổng lượt vote giảm dần, sau đó số lượt chọn bài thắng ở trận đã chốt; bằng điểm thì cùng hạng
+- Chặn bài trùng khi tìm kiếm, thêm hàng loạt, nhập tay, tải file và gọi API: chuẩn hóa tên bài + nghệ sĩ (Unicode, hoa/thường, khoảng trắng), hoặc cùng ID video YouTube / track Spotify
+- Trang kết quả có các thẻ chọn giải, lọc theo vòng (64, 32, 16, tứ kết…), trạng thái và phân trang 10/20/50 trận
 - API backend lưu dữ liệu trong database
 
 > Lưu ý chống gian lận: định danh voter phía trình duyệt phù hợp cho bản demo/nhóm nhỏ, không thể đảm bảo một người chỉ vote một lần nếu họ xóa dữ liệu trình duyệt hoặc dùng thiết bị khác. Nếu cần vận hành công khai, nên thêm đăng nhập hoặc mã xác thực.
@@ -75,6 +80,24 @@ Không dùng `ddl-auto=create` trên dữ liệu thật. Bản demo đang dùng 
 - `POST /api/tournaments/{id}/admin/rounds/{roundIndex}/open`
 - `PUT /api/tournaments/{id}/admin/end-time`
 - `GET /api/tournaments/{id}/results`
+- `GET /api/tournaments/{id}/matches/{matchId}/votes?page=0&size=10` — chi tiết phiếu, trang bắt đầu từ 0, size 1–100
+- `GET /api/tournaments/{id}/players?voterKey=...` — bảng xếp hạng người chơi, `voterKey` tùy chọn để đánh dấu người hiện tại; kết quả không công khai voter key
+
+Body API vote hiện tại:
+```json
+{"voterKey":"browser-uuid","songId":1,"displayName":"Duy Anh","reason":"Giai điệu hay"}
+```
+`displayName` bắt buộc; `reason` có thể bỏ qua hoặc để trống. Đổi tên không tạo thêm quyền vote. Tên được lưu tại thời điểm vote; bảng xếp hạng dùng tên trong phiếu mới nhất của người chơi trong giải. Phiếu trước bản cập nhật vẫn được tính và hiển thị “Người chơi cũ” khi chưa có tên. Tên và lý do được hiển thị công khai trong chi tiết cặp đấu.
+
+### Kiểm thử
+```bash
+cd frontend
+npm test
+npm run build
+cd ../backend
+mvn test
+```
+Kiểm thử backend dùng H2 trong bộ nhớ, độc lập với dữ liệu thật. Khi deploy, cấu hình `ddl-auto=update` hiện có sẽ bổ sung hai cột nullable `display_name` và `reason` vào `votes`, giữ các phiếu cũ. Các giải cũ đã chứa bài trùng cần được admin tạo lại với danh sách đã làm sạch; hệ thống chặn vote cặp có cùng tên bài và nghệ sĩ. Các bản cover cùng tên nhưng khác nghệ sĩ được phép tham gia.
 
 ## Ghi chú
 Đây là nền tảng chạy local để phát triển tiếp. Muốn nhiều người truy cập từ Internet, bạn cần deploy frontend/backend và database lên hosting, đồng thời thay mã quản trị demo bằng xác thực an toàn.

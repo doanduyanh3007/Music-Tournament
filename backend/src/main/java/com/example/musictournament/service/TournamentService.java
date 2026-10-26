@@ -8,6 +8,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -112,6 +113,8 @@ public class TournamentService {
     public Map<String, Object> create(CreateTournamentRequest request) {
         Tournament t = tournaments.save(new Tournament(request.name().trim()));
         List<Song> songEntities = new ArrayList<>();
+        Set<String> songKeys = new HashSet<>();
+        Set<String> recordingKeys = new HashSet<>();
         for (String raw : request.songs()) {
             String line = raw.trim();
             if (line.isEmpty()) continue;
@@ -125,10 +128,18 @@ public class TournamentService {
                     songPart = line.substring(0, pipeIdx).trim();
                 }
             }
-            String[] parts = songPart.split("\\s+[—–-]\\s+", 2);
+            String[] tabs = songPart.split("\\t", -1);
+            String[] parts = tabs.length >= 2 ? tabs : songPart
+                    .replaceFirst("^\\s*(?:\\[?\\d+\\]?[.\\-)\\s]+)", "").trim().split("\\s+[—–-]\\s+", 2);
             String title = parts[0].trim();
             String artist = parts.length > 1 ? parts[1].trim() : "";
+            if (link == null && tabs.length >= 3 && tabs[2].trim().matches("https?://.*")) link = tabs[2].trim();
             if (title.isBlank()) continue;
+            String recording = SongIdentity.recording(link);
+            if (!songKeys.add(SongIdentity.metadata(title, artist))
+                    || (recording != null && !recordingKeys.add(recording))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bài hát bị trùng: " + title + " — " + artist);
+            }
             songEntities.add(new Song(title, artist, link, t));
         }
         if (songEntities.size() < 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cần ít nhất 2 bài hát hợp lệ.");
@@ -371,17 +382,83 @@ public class TournamentService {
         TournamentMatch m = matches.findByIdAndTournamentId(matchId, tournamentId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cặp đấu."));
         if (m.isClosed()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu đã đóng hoặc chưa mở bình chọn.");
         if (m.getWinner() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu đã có kết quả.");
+        if (m.getSongA() == null || m.getSongB() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu chưa đủ hai bài hát.");
+        if (SongIdentity.metadata(m.getSongA().getTitle(), m.getSongA().getArtist())
+                .equals(SongIdentity.metadata(m.getSongB().getTitle(), m.getSongB().getArtist())))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cặp đấu có hai bài hát trùng nhau. Vui lòng liên hệ quản trị viên.");
         Song selected = null;
         if (m.getSongA() != null && m.getSongA().getId().equals(request.songId())) selected = m.getSongA();
         if (m.getSongB() != null && m.getSongB().getId().equals(request.songId())) selected = m.getSongB();
         if (selected == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bài hát không thuộc cặp đấu này.");
         if (votes.existsByMatchIdAndVoterKey(matchId, request.voterKey())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi.");
         try {
-            votes.saveAndFlush(new Vote(m, request.voterKey(), selected));
+            votes.saveAndFlush(new Vote(m, request.voterKey(), selected, request.displayName().strip(),
+                    request.reason() == null ? "" : request.reason().strip()));
         } catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã vote cặp này rồi.");
         }
         return detail(tournamentId, request.voterKey());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> matchVotes(Long tournamentId, Long matchId, int page, int size) {
+        if (page < 0 || size < 1 || size > 100)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phân trang không hợp lệ (1–100 phiếu/trang).");
+        matches.findByIdAndTournamentId(matchId, tournamentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cặp đấu."));
+        var result = votes.findByMatchIdOrderByCreatedAtDescIdDesc(matchId, PageRequest.of(page, size));
+        var items = result.getContent().stream().map(v -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", v.getId());
+            item.put("displayName", voterName(v));
+            item.put("song", songDto(v.getSong()));
+            item.put("reason", v.getReason() == null ? "" : v.getReason());
+            item.put("createdAt", v.getCreatedAt());
+            return item;
+        }).toList();
+        return Map.of("items", items, "page", page, "totalPages", result.getTotalPages(), "totalElements", result.getTotalElements());
+    }
+
+    private String voterName(Vote vote) {
+        return vote.getDisplayName() == null || vote.getDisplayName().isBlank() ? "Người chơi cũ" : vote.getDisplayName();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> playerLeaderboard(Long tournamentId, String voterKey) {
+        if (!tournaments.existsById(tournamentId))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu.");
+        class PlayerStat {
+            String name;
+            long count, correct, decided;
+        }
+        Map<String, PlayerStat> players = new LinkedHashMap<>();
+        for (Vote v : votes.findByMatchTournamentIdOrderByCreatedAtAscIdAsc(tournamentId)) {
+            PlayerStat stat = players.computeIfAbsent(v.getVoterKey(), k -> new PlayerStat());
+            stat.name = voterName(v);
+            stat.count++;
+            Song winner = v.getMatch().getWinner();
+            if (winner != null) {
+                stat.decided++;
+                if (winner.getId().equals(v.getSong().getId())) stat.correct++;
+            }
+        }
+        var ordered = new ArrayList<>(players.entrySet());
+        // Stable insertion order resolves equal scores without publishing browser identifiers.
+        ordered.sort(Comparator.<Map.Entry<String, PlayerStat>>comparingLong(e -> e.getValue().count).reversed()
+                .thenComparing(Comparator.comparingLong((Map.Entry<String, PlayerStat> e) -> e.getValue().correct).reversed()));
+        List<Map<String, Object>> result = new ArrayList<>();
+        int rank = 0;
+        long previousCount = -1, previousCorrect = -1;
+        for (var entry : ordered) {
+            PlayerStat s = entry.getValue();
+            if (s.count != previousCount || s.correct != previousCorrect) rank = result.size() + 1;
+            previousCount = s.count; previousCorrect = s.correct;
+            result.add(Map.of("rank", rank, "displayName", s.name, "totalVotes", s.count,
+                    "winningVotes", s.correct, "decidedVotes", s.decided,
+                    "isCurrentPlayer", entry.getKey().equals(voterKey)));
+        }
+        return result;
     }
 
     @Transactional

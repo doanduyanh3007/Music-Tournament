@@ -27,6 +27,15 @@ public class TournamentController {
     @GetMapping("/tournaments/{id}/results") public Map<String,Object> results(@PathVariable Long id){return service.results(id);}
     @PostMapping("/tournaments/{id}/matches/{matchId}/vote")
     public Map<String,Object> vote(@PathVariable Long id,@PathVariable Long matchId,@Valid @RequestBody VoteRequest request){return service.vote(id,matchId,request);}
+    @GetMapping("/tournaments/{id}/matches/{matchId}/votes")
+    public Map<String,Object> matchVotes(@PathVariable Long id, @PathVariable Long matchId,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="10") int size) {
+        return service.matchVotes(id, matchId, page, size);
+    }
+    @GetMapping("/tournaments/{id}/players")
+    public List<Map<String,Object>> players(@PathVariable Long id, @RequestParam(required=false) String voterKey) {
+        return service.playerLeaderboard(id, voterKey);
+    }
     @PostMapping("/tournaments/{id}/admin/rounds/{roundIndex}/close")
     public Map<String,Object> close(@PathVariable Long id,@PathVariable int roundIndex){return service.closeRound(id,roundIndex);}
     @PostMapping("/tournaments/{id}/admin/rounds/{roundIndex}/open")

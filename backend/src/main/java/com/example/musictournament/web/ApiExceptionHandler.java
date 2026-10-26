@@ -16,7 +16,9 @@ public class ApiExceptionHandler {
     }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String,String>> validation(MethodArgumentNotValidException ex) {
-        return ResponseEntity.badRequest().body(Map.of("message","Dữ liệu không hợp lệ. Hãy kiểm tra tên giải và danh sách bài hát."));
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(e -> e.getField() + ": " + e.getDefaultMessage()).findFirst().orElse("Dữ liệu không hợp lệ.");
+        return ResponseEntity.badRequest().body(Map.of("message", message));
     }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String,String>> generic(Exception ex) {

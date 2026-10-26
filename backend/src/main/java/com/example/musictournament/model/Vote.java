@@ -13,6 +13,10 @@ public class Vote {
     private TournamentMatch match;
     @Column(name = "voter_key", nullable = false, length = 100)
     private String voterKey;
+    @Column(length = 50)
+    private String displayName;
+    @Column(length = 1000)
+    private String reason;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "song_id")
     private Song song;
@@ -20,12 +24,15 @@ public class Vote {
     private Instant createdAt = Instant.now();
 
     public Vote() {}
-    public Vote(TournamentMatch match, String voterKey, Song song) {
+    public Vote(TournamentMatch match, String voterKey, Song song, String displayName, String reason) {
         this.match=match; this.voterKey=voterKey; this.song=song;
+        this.displayName=displayName; this.reason=reason;
     }
     public Long getId(){return id;}
     public TournamentMatch getMatch(){return match;}
     public String getVoterKey(){return voterKey;}
+    public String getDisplayName(){return displayName;}
+    public String getReason(){return reason;}
     public Song getSong(){return song;}
     public Instant getCreatedAt(){return createdAt;}
 }

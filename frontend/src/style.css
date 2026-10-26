@@ -25,6 +25,51 @@
 }
 
 /* ─── Reset ─── */
+.tournament-selector { display:flex; gap:12px; overflow-x:auto; padding:2px 2px 18px; margin-bottom:6px; }
+.tournament-choice { flex:0 0 220px; display:flex; flex-direction:column; gap:8px; text-align:left; padding:16px; border:1px solid var(--line); border-radius:8px; background:var(--pale); color:var(--ink); }
+.tournament-choice b { overflow-wrap:anywhere; }
+.tournament-choice small { color:var(--muted); }
+.tournament-choice.active { border-color:var(--blue); box-shadow:inset 0 0 0 1px var(--blue); background:rgba(99,102,241,.09); }
+.results-filters { display:flex; flex-wrap:wrap; align-items:end; gap:16px; margin:20px 0; }
+.results-filters label, .vote-dialog-body label { display:flex; flex-direction:column; gap:6px; font-size:13px; font-weight:600; }
+.results-filters select, .results-filters input, .vote-dialog input, .vote-dialog textarea { padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:var(--pale); color:var(--ink); min-width:0; }
+.results-filters label { min-width:180px; }
+.results-pagination { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:flex-end; margin-top:20px; }
+.results-pagination span { font-size:12px; color:var(--muted); margin-right:auto; }
+.result-row-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; color:var(--muted); }
+.match-detail-btn { border:1px solid var(--line); background:var(--pale); color:var(--blue); border-radius:4px; padding:4px 8px; font-size:11px; white-space:nowrap; }
+.match-top, .tree-match-header { flex-wrap:wrap; gap:6px; }
+.vote-dialog { width:min(520px, calc(100vw - 32px)); max-height:90vh; overflow-y:auto; border-radius:12px; background:var(--pale); color:var(--ink); box-shadow:var(--shadow-md); }
+.vote-details-dialog { width:min(760px, calc(100vw - 32px)); }
+.vote-dialog-body { padding:24px; display:flex; flex-direction:column; gap:16px; }
+.vote-dialog .player-modal-header h3 { font-size:16px; }
+.vote-dialog textarea { resize:vertical; width:100%; }
+.vote-dialog input { width:100%; }
+.vote-dialog .muted { font-weight:400; font-size:12px; }
+.vote-choice { padding:16px; border-left:3px solid var(--blue); background:rgba(99,102,241,.09); }
+.vote-choice small { display:block; color:var(--muted); }
+.dialog-actions { display:flex; justify-content:flex-end; gap:10px; }
+.vote-detail-item { border:1px solid var(--line); border-radius:8px; padding:16px; overflow-wrap:anywhere; }
+.vote-detail-item > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.vote-detail-item time { font-size:11px; color:var(--muted); }
+.vote-reason { white-space:pre-wrap; margin-top:8px; color:var(--muted); font-size:13px; }
+.form-error { color:var(--red); font-size:13px; }
+.duplicate-warning { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:14px; margin:12px 0; border:1px solid #f59e0b; border-radius:6px; overflow-wrap:anywhere; }
+.data-table-wrapper { overflow-x:auto; }
+.player-table { border-collapse:collapse; width:100%; min-width:600px; font-size:13px; }
+.player-table th, .player-table td { text-align:left; padding:14px 12px; border-bottom:1px solid var(--line); }
+.player-table th { background:var(--pale); color:var(--muted); }
+.player-table .currentPlayer { background:rgba(99,102,241,.09); }
+.topbar .player-name-btn { color:#fff; background:#36345c; border:1px solid #5b5780; flex-shrink:0; white-space:nowrap; }
+html[data-theme="dark"] :is(.vote-dialog, .tournament-choice, .match-detail-btn, .player-table, .results-filters) {
+  --pale:#172033; --ink:#f1f5f9; --line:#334155; --muted:#a6b4ca; --blue:#a5b4fc;
+}
+@media(max-width:640px) {
+  .vote-dialog-body { padding:16px; }
+  .results-filters label { width:100%; }
+  .tournament-choice { flex-basis:190px; }
+  .topbar { height:auto !important; min-height:56px; flex-wrap:wrap; padding-top:8px !important; padding-bottom:8px !important; }
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { min-width: 320px; line-height: 1.5; }
 button, input, textarea { font: inherit; }
