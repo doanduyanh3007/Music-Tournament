@@ -145,6 +145,7 @@ public class TournamentService {
         if (songEntities.size() < 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cần ít nhất 2 bài hát hợp lệ.");
 
         List<Song> entrants = songs.saveAll(songEntities);
+        t.getSongs().addAll(entrants);
 
         if (request.shouldShuffle()) {
             Collections.shuffle(entrants);
@@ -370,7 +371,7 @@ public class TournamentService {
         out.put("songs", t.getSongs().stream().map(this::songDto).toList());
         out.put("rounds", roundDtos);
         out.put("wildcards", wcDtos);
-        out.put("champion", all.isEmpty() ? null : songDto(all.stream().filter(m -> m.getRoundIndex() == grouped.size() - 1).map(TournamentMatch::getWinner).filter(Objects::nonNull).findFirst().orElse(null)));
+        out.put("champion", songDto(confirmedChampion(all)));
         return out;
     }
 
@@ -532,11 +533,7 @@ public class TournamentService {
         Tournament t = tournaments.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu."));
         List<TournamentMatch> allMatches = matches.findByTournamentIdOrderByRoundIndexAscPositionAsc(id);
         int totalRounds = allMatches.stream().mapToInt(TournamentMatch::getRoundIndex).max().orElse(0) + 1;
-        Song champ = allMatches.stream()
-                .filter(m -> m.getRoundIndex() == totalRounds - 1)
-                .map(TournamentMatch::getWinner)
-                .filter(Objects::nonNull)
-                .findFirst().orElse(null);
+        Song champ = confirmedChampion(allMatches);
 
         class SongStat {
             final Song song;
@@ -601,7 +598,7 @@ public class TournamentService {
                 st.furthestStage = "Quán quân 🏆";
             } else if (st.furthestRound == totalRounds - 1) {
                 st.tier = 2;
-                st.furthestStage = "Á quân 🥈";
+                st.furthestStage = champ == null ? "Chung kết · FINALIST" : "Á quân 🥈";
             } else if (st.furthestRound == totalRounds - 2) {
                 st.tier = 3;
                 st.furthestStage = "Bán kết 🥉";
@@ -785,24 +782,47 @@ public class TournamentService {
     }
 
     private void advanceDirect(List<TournamentMatch> prev, List<TournamentMatch> cur) {
+        boolean previousComplete = prev.stream().allMatch(m -> m.getWinner() != null
+                || (m.getSongA() == null && m.getSongB() == null));
         for (TournamentMatch m : cur) {
             int idx = m.getPosition() * 2;
             Song a = idx < prev.size() ? prev.get(idx).getWinner() : null;
             Song b = idx + 1 < prev.size() ? prev.get(idx + 1).getWinner() : null;
-            updateEntrantsIfChanged(m, a, b);
+            updateEntrantsIfChanged(m, a, b, previousComplete);
         }
     }
 
     private void updateEntrantsIfChanged(TournamentMatch m, Song a, Song b) {
+        updateEntrantsIfChanged(m, a, b, false);
+    }
+
+    private void updateEntrantsIfChanged(TournamentMatch m, Song a, Song b, boolean allowBye) {
         boolean changed = !Objects.equals(m.getSongA() == null ? null : m.getSongA().getId(), a == null ? null : a.getId())
                 || !Objects.equals(m.getSongB() == null ? null : m.getSongB().getId(), b == null ? null : b.getId());
-        if (changed) {
+        if (changed || (!allowBye && m.getWinner() != null && (a == null || b == null))) {
             m.getVotes().clear();
             m.setWinner(null);
             m.setEntrants(a, b);
-            if (a != null && b == null) m.setWinner(a);
-            else if (b != null && a == null) m.setWinner(b);
         }
+        // An empty slot is a bye only after the source round has resolved, not while its opponent is pending.
+        if (allowBye && a != null && b == null) m.setWinner(a);
+        else if (allowBye && b != null && a == null) m.setWinner(b);
+    }
+
+    private boolean hasValidWinner(TournamentMatch m) {
+        return m.getWinner() != null && ((m.getSongA() != null && m.getWinner().getId().equals(m.getSongA().getId()))
+                || (m.getSongB() != null && m.getWinner().getId().equals(m.getSongB().getId())));
+    }
+
+    private Song confirmedChampion(List<TournamentMatch> all) {
+        int finalIndex = all.stream().mapToInt(TournamentMatch::getRoundIndex).max().orElse(-1);
+        List<TournamentMatch> finals = all.stream().filter(m -> m.getRoundIndex() == finalIndex).toList();
+        if (finals.size() != 1) return null;
+        TournamentMatch fin = finals.get(0);
+        if (fin.getSongA() == null || fin.getSongB() == null || fin.getSongA().getId().equals(fin.getSongB().getId())
+                || !hasValidWinner(fin)) return null;
+        boolean unresolved = all.stream().anyMatch(m -> m.getSongA() != null && m.getSongB() != null && !hasValidWinner(m));
+        return unresolved ? null : fin.getWinner();
     }
 
     private Map<String, Object> summary(Tournament t) {
@@ -815,7 +835,7 @@ public class TournamentService {
         out.put("songCount", t.getSongs().size());
         out.put("active", t.isActive());
         out.put("completedMatches", done);
-        out.put("champion", ms.stream().filter(m -> m.getRoundIndex() == ms.stream().mapToInt(TournamentMatch::getRoundIndex).max().orElse(0)).map(TournamentMatch::getWinner).filter(Objects::nonNull).findFirst().map(this::songDto).orElse(null));
+        out.put("champion", songDto(confirmedChampion(ms)));
         return out;
     }
 
@@ -974,6 +994,7 @@ public class TournamentService {
                     Song su = arr[base + u];
                     Song sv = arr[base + v];
                     if (sameArtist(su, sv)) {
+                        swapSearch:
                         for (int otherQ = 0; otherQ < numQuads; otherQ++) {
                             if (otherQ == q) continue;
                             int otherBase = 4 * otherQ;
@@ -983,7 +1004,7 @@ public class TournamentService {
                                 if (canSwapQuad(arr, base, base + v, sw, otherBase, otherBase + w, sv)) {
                                     arr[base + v] = sw;
                                     arr[otherBase + w] = sv;
-                                    break;
+                                    break swapSearch;
                                 }
                             }
                         }

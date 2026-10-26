@@ -1,12 +1,24 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, provide, onMounted, onUnmounted, ref, watch } from 'vue'
 import { parseSongs, uniqueSongs, formatSong } from './songInput.js'
 import ChampionStage from './ChampionStage.vue'
+import SongBadge from './SongBadge.vue'
+import { getChampionship, createCoronationTracker } from './championship.js'
 
 const API = '/api'
 const voterKey = getVoterKey()
 const tournaments = ref([])
 const tournament = ref(null)
+const championship = computed(() => getChampionship(tournament.value))
+provide('championship', championship)
+let coronationStorage
+try { coronationStorage = sessionStorage } catch {}
+const coronations = createCoronationTracker(coronationStorage)
+function claimCoronation() { return coronations.claim(tournament.value?.id, championship.value.resultKey) }
+watch([() => tournament.value?.id, () => championship.value.resultKey], ([id, key]) => {
+  if (id != null && !key) coronations.reset(id)
+}, { flush: 'sync' })
+function isChampion(song) { return song?.id != null && championship.value.champion?.id === song.id }
 const selectedRound = ref(0)
 const page = ref('home')
 const viewMode = ref('tabs') // 'tabs' | 'tree'
@@ -280,7 +292,7 @@ const computedLeaderboard = computed(() => {
   const songs = t.songs || []
   const rounds = t.rounds || []
   const totalRounds = rounds.length
-  const champ = tournament.value.champion
+  const champ = championship.value.champion
 
   const statsMap = new Map()
   songs.forEach(s => {
@@ -343,7 +355,7 @@ const computedLeaderboard = computed(() => {
       st.furthestStage = 'Quán quân 🏆'
     } else if (totalRounds > 0 && st.furthestRound === totalRounds - 1) {
       st.tier = 2
-      st.furthestStage = 'Á quân 🥈'
+      st.furthestStage = champ ? 'Á quân 🥈' : 'Chung kết · FINALIST'
     } else if (totalRounds > 1 && st.furthestRound === totalRounds - 2) {
       st.tier = 3
       st.furthestStage = 'Bán kết 🥉'
@@ -1185,7 +1197,7 @@ async function copyShareLink() {
 }
 
 const currentRound = computed(() => tournament.value?.rounds?.[selectedRound.value] || null)
-const champion = computed(() => tournament.value?.champion || null)
+const champion = computed(() => championship.value.champion)
 const isFinalRound = computed(() => {
   const rounds = tournament.value?.rounds || []
   const round = currentRound.value
@@ -1395,7 +1407,8 @@ onMounted(() => {
   window.addEventListener('hashchange', checkUrlHash)
   document.addEventListener('keydown', trapVoteDialogFocus)
   liveTimer = setInterval(() => {
-    if (tournament.value && tournament.value.active && (page.value === 'rounds' || page.value === 'results' || page.value === 'leaderboard' || page.value === 'players')) {
+    // Finished tournaments still need refreshes so an administrator's reset removes stale champion badges.
+    if (tournament.value && (page.value === 'rounds' || page.value === 'results' || page.value === 'leaderboard' || page.value === 'players')) {
       silentRefresh()
     }
   }, 4000)
@@ -1748,12 +1761,12 @@ onUnmounted(() => {
         <div class="section-head"><div><span class="mini-icon">♫</span><h3>{{ tournament?.name || 'Chọn một giải đấu' }}</h3></div><button class="btn soft" @click="page='home'">＋ Tạo giải mới</button></div>
         <p v-if="!tournament" class="muted">Chọn giải đấu từ trang Tổng quan để xem danh sách bài hát.</p>
         <div v-else class="song-grid">
-          <div v-for="(song,i) in tournament.songs" :key="song.id" class="library-song">
+          <div v-for="(song,i) in tournament.songs" :key="song.id" class="library-song" :class="{'grand-champion-song':isChampion(song)}">
             <span class="song-index">{{ String(i+1).padStart(2,'0') }}</span>
             <div class="song-cover-box" style="width:34px;height:34px;border-radius:4px;flex-shrink:0;">
               <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
             </div>
-            <div><b>{{ song.title }}</b><small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small></div>
+            <div><b>{{ song.title }}</b><SongBadge :song="song" /><small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small></div>
             <button v-if="song.link" @click="playSong(song)" class="btn song-link-btn" :class="{spotifyBtn: isSpotifyLink(song.link)}" :title="isSpotifyLink(song.link) ? 'Nghe thử trên Spotify' : 'Nghe thử bài này'">
               {{ isSpotifyLink(song.link) ? '🟢 Nghe thử' : '▶ Nghe thử' }}
             </button>
@@ -1784,6 +1797,8 @@ onUnmounted(() => {
               <button class="mode-btn" :class="{active:viewMode==='tree'}" @click="viewMode='tree'">⑂ Sơ đồ cây</button>
             </div>
           </div>
+
+          <ChampionStage v-if="champion" :key="championship.resultKey" ref="championStage" :song="champion" :championship="championship" :claim-coronation="claimCoronation" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
 
           <!-- ROUND CONTROLLER BAR (ĐÓNG/MỞ TỪNG VÒNG) -->
           <div class="rounds-status-panel">
@@ -1824,7 +1839,7 @@ onUnmounted(() => {
               <div v-for="(wc, idx) in tournament.wildcards" :key="idx" class="wildcard-item-card">
                 <div class="wc-badge-num">Hạng {{ idx + 1 }}</div>
                 <div class="wc-song-info">
-                  <b>{{ wc.song?.title }}</b>
+                  <b>{{ wc.song?.title }}</b><SongBadge :song="wc.song" />
                   <small>{{ wc.song?.artist || '—' }}</small>
                 </div>
                 <div class="wc-stats-col">
@@ -1913,13 +1928,13 @@ onUnmounted(() => {
                   <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
                   <span v-else class="match-state live">● Đang vote</span>
                 </div>
-                <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
                   <template v-if="song">
                     <div class="song-cover-box" :title="song.title + ' — ' + (song.artist || '')">
                       <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
                     </div>
                     <div class="song-meta">
-                      <b>{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách Wildcard">⭐</span></b>
+                      <b>{{ song.title }} <SongBadge :song="song" :match="match" /> <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách Wildcard">⭐</span></b>
                       <small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small>
                       <div class="vote-bar"><i :style="{width:((match['votes'+(side===0?'A':'B')]+1)/(match.votesA+match.votesB+2)*100)+'%'}"></i></div>
                     </div>
@@ -1929,7 +1944,7 @@ onUnmounted(() => {
                         {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
                       </button>
                       <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                        {{ match.winner?.id===song.id ? '✓ Thắng' : (match.closed ? 'Đã đóng' : 'Vote') }}
+                        {{ match.winner?.id===song.id ? (isChampion(song) ? '♛ CHAMPION' : '✓ WINNER') : (match.closed ? 'Đã đóng' : 'Vote') }}
                       </button>
                     </div>
                   </template>
@@ -2004,13 +2019,13 @@ onUnmounted(() => {
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
                           </div>
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b><SongBadge :song="song" :match="match" />
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
@@ -2019,7 +2034,7 @@ onUnmounted(() => {
                             </button>
                             <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
                             <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                              {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
+                              {{ match.winner?.id===song.id ? (isChampion(song) ? '♛' : '✓') : 'Vote' }}
                             </button>
                           </div>
                         </template>
@@ -2040,7 +2055,7 @@ onUnmounted(() => {
                 <div v-if="worldCupBracket.centerRound" class="center-final-card">
                   <div class="tree-round-header gold-header">
                     <h4>{{ worldCupBracket.centerRound.name }}</h4>
-                    <small>{{ worldCupBracket.centerRound.completed ? '🏆 Đã tìm ra quán quân' : (worldCupBracket.centerRound.closed ? '🔒 Đã đóng' : '🔓 Đang tranh cúp') }}</small>
+                    <small>{{ champion ? '♛ GRAND CHAMPION' : (worldCupBracket.centerRound.closed ? '🔒 Đã đóng' : '🔓 Đang tranh cúp') }}</small>
                     <button class="tree-toggle-round-btn" @click="toggleRoundVoting(worldCupBracket.centerRound.index, worldCupBracket.centerRound.closed)">
                       {{ worldCupBracket.centerRound.closed ? '🔓 Mở vote' : '🔒 Đóng vote' }}
                     </button>
@@ -2050,17 +2065,17 @@ onUnmounted(() => {
                     <div v-for="match in worldCupBracket.centerRound.matches" :key="match.id" class="tree-match-card final-glow-card" :class="{treeMatchLocked:match.closed}">
                       <div class="tree-match-header final-header-bar">
                         <span>TRẬN TRANH CÚP VÀNG</span><button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
-                        <span v-if="match.winner" class="mini-status won">🏆 QUÁN QUÂN: {{ match.winner.title }}</span>
+                        <span v-if="match.winner" class="mini-status won">{{ champion ? '♛ GRAND CHAMPION: ' : 'WINNER: ' }}{{ match.winner.title }}</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng vote</span>
                         <span v-else class="mini-status live">● ĐANG BÌNH CHỌN</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
                           </div>
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b><SongBadge :song="song" :match="match" />
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
@@ -2069,7 +2084,7 @@ onUnmounted(() => {
                             </button>
                             <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
                             <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                              {{ match.winner?.id===song.id ? '✓ VÔ ĐỊCH' : 'Vote' }}
+                              {{ match.winner?.id===song.id ? (isChampion(song) ? '♛ CHAMPION' : '✓ WINNER') : 'Vote' }}
                             </button>
                           </div>
                         </template>
@@ -2099,13 +2114,13 @@ onUnmounted(() => {
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
                         <span v-else class="mini-status live">Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song)}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
                           </div>
                           <div class="tree-song-text">
-                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b>
+                            <b :title="song.title">{{ song.title }} <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách">⭐</span></b><SongBadge :song="song" :match="match" />
                             <small :title="song.artist">{{ song.artist || '—' }}</small>
                           </div>
                           <div class="tree-song-actions">
@@ -2114,7 +2129,7 @@ onUnmounted(() => {
                             </button>
                             <span class="tree-vote-count">{{ match['votes'+(side===0?'A':'B')] }}</span>
                             <button class="tree-vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                              {{ match.winner?.id===song.id ? '✓' : 'Vote' }}
+                              {{ match.winner?.id===song.id ? (isChampion(song) ? '♛' : '✓') : 'Vote' }}
                             </button>
                           </div>
                         </template>
@@ -2128,8 +2143,6 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- GRAND CHAMPION CELEBRATION STAGE -->
-          <ChampionStage v-if="champion" :key="tournament.id + ':' + champion.id" ref="championStage" :song="champion" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
           <div v-if="showAdmin" class="admin-tools">
             <h3>🔐 Quản trị toàn giải</h3>
             <div class="admin-actions">
@@ -2184,7 +2197,7 @@ onUnmounted(() => {
           </div>
 
           <!-- TOP 3 PODIUM SECTION -->
-          <div v-if="podiumSongs.length >= 2" class="podium-wrapper">
+          <div v-if="podiumSongs.length >= 2" class="podium-wrapper" :class="{'provisional-podium':!champion}">
             <div class="podium-header-badge">
               <span>✨ BỤC VINH QUANG TOP 3 ✨</span>
             </div>
@@ -2200,7 +2213,7 @@ onUnmounted(() => {
                       {{ isSpotifyLink(podiumSongs[1].song.link) ? '🟢' : '▶' }}
                     </button>
                   </div>
-                  <b class="podium-title-text" :title="podiumSongs[1].song.title">{{ podiumSongs[1].song.title }}</b>
+                  <b class="podium-title-text" :title="podiumSongs[1].song.title">{{ podiumSongs[1].song.title }}</b><SongBadge :song="podiumSongs[1].song" />
                   <small class="podium-artist-text">{{ podiumSongs[1].song.artist || '—' }}</small>
                   <div class="podium-round-tag">{{ podiumSongs[1].furthestStage }}</div>
                   <div class="podium-diff-pill" :class="{diffPos: podiumSongs[1].voteDiff > 0, diffNeg: podiumSongs[1].voteDiff < 0}">
@@ -2208,13 +2221,13 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="podium-step step-2">
-                  <span>Á QUÂN</span>
+                  <span>{{ champion ? 'Á QUÂN' : 'HẠNG 2 TẠM THỜI' }}</span>
                 </div>
               </div>
 
               <!-- RANK 1: GOLD (CHÍNH GIỮA, CAO NHẤT) -->
               <div v-if="podiumSongs[0]" class="podium-pedestal-group gold-group">
-                <div class="podium-crown-icon">👑</div>
+                <div v-if="champion" class="podium-crown-icon">👑</div>
                 <div class="podium-card gold-card">
                   <div class="podium-medal-badge gold-badge">🥇 1</div>
                   <div class="podium-cover-box gold-cover">
@@ -2223,7 +2236,7 @@ onUnmounted(() => {
                       {{ isSpotifyLink(podiumSongs[0].song.link) ? '🟢' : '▶' }}
                     </button>
                   </div>
-                  <b class="podium-title-text gold-text" :title="podiumSongs[0].song.title">{{ podiumSongs[0].song.title }}</b>
+                  <b class="podium-title-text gold-text" :title="podiumSongs[0].song.title">{{ podiumSongs[0].song.title }}</b><SongBadge :song="podiumSongs[0].song" />
                   <small class="podium-artist-text">{{ podiumSongs[0].song.artist || '—' }}</small>
                   <div class="podium-round-tag gold-round">{{ podiumSongs[0].furthestStage }}</div>
                   <div class="podium-diff-pill diffPos">
@@ -2231,7 +2244,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="podium-step step-1">
-                  <span>QUÁN QUÂN 🏆</span>
+                  <span>{{ champion ? 'GRAND CHAMPION ♛' : 'ĐANG DẪN ĐẦU' }}</span>
                 </div>
               </div>
 
@@ -2245,7 +2258,7 @@ onUnmounted(() => {
                       {{ isSpotifyLink(podiumSongs[2].song.link) ? '🟢' : '▶' }}
                     </button>
                   </div>
-                  <b class="podium-title-text" :title="podiumSongs[2].song.title">{{ podiumSongs[2].song.title }}</b>
+                  <b class="podium-title-text" :title="podiumSongs[2].song.title">{{ podiumSongs[2].song.title }}</b><SongBadge :song="podiumSongs[2].song" />
                   <small class="podium-artist-text">{{ podiumSongs[2].song.artist || '—' }}</small>
                   <div class="podium-round-tag">{{ podiumSongs[2].furthestStage }}</div>
                   <div class="podium-diff-pill" :class="{diffPos: podiumSongs[2].voteDiff > 0, diffNeg: podiumSongs[2].voteDiff < 0}">
@@ -2253,7 +2266,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="podium-step step-3">
-                  <span>BÁN KẾT</span>
+                  <span>{{ champion ? 'BÁN KẾT' : 'HẠNG 3 TẠM THỜI' }}</span>
                 </div>
               </div>
             </div>
@@ -2322,7 +2335,7 @@ onUnmounted(() => {
                       </div>
                       <div class="lb-song-details">
                         <b class="lb-song-title">
-                          {{ item.song.title }}
+                          {{ item.song.title }} <SongBadge :song="item.song" />
                           <span v-if="isWildcardSong(item.song.id)" class="song-wc-badge" title="Đặc cách Wildcard">⭐</span>
                         </b>
                         <small class="lb-song-artist">{{ item.song.artist || 'Chưa nhập nghệ sĩ' }}</small>
@@ -2408,11 +2421,11 @@ onUnmounted(() => {
             <span>{{ resultMatches.length }} trận</span>
           </div>
           <!-- GRAND CHAMPION CELEBRATION STAGE -->
-          <ChampionStage v-if="champion" :key="tournament.id + ':' + champion.id" ref="championStage" :song="champion" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
+          <ChampionStage v-if="champion" :key="championship.resultKey" ref="championStage" :song="champion" :championship="championship" :claim-coronation="claimCoronation" :tournament-name="tournament.name" :artwork="getSongArtwork(champion)" @before-play="stopOtherPlayers" @share="copyChampionTitle" />
           <p v-if="!visibleResults.length" class="muted">Không có trận đấu phù hợp bộ lọc.</p>
           <div v-for="m in visibleResults" :key="m.id" class="result-round">
             <div class="result-row-heading"><small>{{ m.roundName }} · Trận {{ m.position + 1 }}</small><button class="match-detail-btn" @click="openVoteDetails(m)">Xem chi tiết</button></div>
-            <div class="result-match"><div><b>{{ m.songA?.title || 'Chưa xác định' }}</b><small>{{ m.songA?.artist }}</small></div><span class="score">{{ m.votesA }} : {{ m.votesB }}</span><div><b>{{ m.songB?.title || (m.bye ? 'Vào thẳng' : 'Chưa xác định') }}</b><small>{{ m.songB?.artist }}</small></div><strong class="winner-label">{{ m.winner?.title || 'Chưa quyết định' }}</strong></div>
+            <div class="result-match"><div :class="{'grand-champion-song':isChampion(m.songA)}"><b>{{ m.songA?.title || 'Chưa xác định' }}</b><SongBadge :song="m.songA" :match="m" /><small>{{ m.songA?.artist }}</small></div><span class="score">{{ m.votesA }} : {{ m.votesB }}</span><div :class="{'grand-champion-song':isChampion(m.songB)}"><b>{{ m.songB?.title || (m.bye ? 'Vào thẳng' : 'Chưa xác định') }}</b><SongBadge :song="m.songB" :match="m" /><small>{{ m.songB?.artist }}</small></div><strong class="winner-label">{{ m.winner?.title || 'Chưa quyết định' }} <SongBadge :song="m.winner" :match="m" /></strong></div>
           </div>
           <div v-if="resultMatches.length" class="results-pagination"><span>{{ (resultPage-1)*resultPageSize+1 }}–{{ Math.min(resultPage*resultPageSize,resultMatches.length) }} / {{ resultMatches.length }} trận · Trang {{ resultPage }} / {{ resultPages }}</span><button class="btn soft" :disabled="resultPage<=1" @click="resultPage--">‹ Trước</button><button class="btn soft" :disabled="resultPage>=resultPages" @click="resultPage++">Sau ›</button></div>
         </template>
@@ -2439,7 +2452,7 @@ onUnmounted(() => {
   <div v-if="pendingVote" class="modal-overlay" @click.self="!voteSubmitting && (pendingVote=null)" @keydown.esc="!voteSubmitting && (pendingVote=null)">
     <form class="vote-dialog" role="dialog" aria-modal="true" aria-labelledby="vote-title" @submit.prevent="submitVote">
       <div class="player-modal-header"><h3 id="vote-title">Bình chọn bài hát</h3><button type="button" class="modal-close-btn" :disabled="voteSubmitting" aria-label="Đóng" @click="pendingVote=null">✕</button></div>
-      <div class="vote-dialog-body"><div class="vote-choice"><b>{{ pendingVote.song.title }}</b><small>{{ pendingVote.song.artist }}</small></div>
+      <div class="vote-dialog-body"><div class="vote-choice"><b>{{ pendingVote.song.title }}</b><SongBadge :song="pendingVote.song" :match="pendingVote.match" /><small>{{ pendingVote.song.artist }}</small></div>
         <label>Tên hiển thị <span class="muted">(bắt buộc)</span><input v-model="nameInput" required maxlength="50" autocomplete="nickname" :disabled="voteSubmitting" placeholder="Nhập tên của bạn"></label>
         <label>Vì sao bạn chọn bài này? <span class="muted">(không bắt buộc)</span><textarea v-model="voteReason" rows="4" maxlength="1000" :disabled="voteSubmitting" placeholder="Chia sẻ cảm nhận của bạn, hoặc để trống…"></textarea></label><small class="muted">{{ voteReason.length }}/1000 ký tự · Tên và lý do sẽ được hiển thị công khai trong chi tiết phiếu.</small>
         <p v-if="voteError" class="form-error" role="alert">{{ voteError }}</p><div class="dialog-actions"><button type="button" class="btn soft" :disabled="voteSubmitting" @click="pendingVote=null">Hủy</button><button class="btn primary" type="submit" :disabled="voteSubmitting">{{ voteSubmitting ? 'Đang gửi…' : 'Xác nhận vote' }}</button></div>
@@ -2452,7 +2465,7 @@ onUnmounted(() => {
       <div class="player-modal-header"><h3 id="details-title">Chi tiết bình chọn · Trận {{ detailMatch.position+1 }}</h3><button class="modal-close-btn" aria-label="Đóng" @click="detailMatch=null">✕</button></div>
       <div class="vote-dialog-body"><p><b>{{ detailMatch.songA?.title || 'Chưa xác định' }}</b> vs <b>{{ detailMatch.songB?.title || 'Chưa xác định' }}</b></p><p class="muted">{{ voteDetails.totalElements }} phiếu · Mới nhất trước</p>
         <p v-if="detailsError" class="form-error" role="alert">{{ detailsError }}</p><p v-if="detailsLoading" class="muted">Đang tải phiếu…</p>
-        <template v-else-if="!detailsError"><p v-if="!voteDetails.items.length" class="muted">Chưa có ai bình chọn cho cặp này.</p><article v-for="v in voteDetails.items" :key="v.id" class="vote-detail-item"><div><b>{{ v.displayName }}</b><time :datetime="v.createdAt">{{ formatVoteTime(v.createdAt) }}</time></div><p>Đã chọn: <b>{{ v.song.title }}</b> <span class="muted">— {{ v.song.artist }}</span></p><p class="vote-reason">{{ v.reason || 'Không ghi lý do.' }}</p></article></template>
+        <template v-else-if="!detailsError"><p v-if="!voteDetails.items.length" class="muted">Chưa có ai bình chọn cho cặp này.</p><article v-for="v in voteDetails.items" :key="v.id" class="vote-detail-item"><div><b>{{ v.displayName }}</b><time :datetime="v.createdAt">{{ formatVoteTime(v.createdAt) }}</time></div><p>Đã chọn: <b>{{ v.song.title }}</b><SongBadge :song="v.song" :match="detailMatch" /> <span class="muted">— {{ v.song.artist }}</span></p><p class="vote-reason">{{ v.reason || 'Không ghi lý do.' }}</p></article></template>
         <div class="results-pagination"><button class="btn soft" :disabled="detailsLoading" @click="openVoteDetails(detailMatch, voteDetails.page)">Làm mới</button><span>Trang {{ voteDetails.page+1 }} / {{ Math.max(1,voteDetails.totalPages) }}</span><button class="btn soft" :disabled="detailsLoading || voteDetails.page<=0" @click="openVoteDetails(detailMatch, voteDetails.page-1)">‹ Trước</button><button class="btn soft" :disabled="detailsLoading || voteDetails.page+1>=voteDetails.totalPages" @click="openVoteDetails(detailMatch, voteDetails.page+1)">Sau ›</button></div>
       </div>
     </section>
@@ -2466,7 +2479,7 @@ onUnmounted(() => {
             {{ isSpotifyLink(activePlayerSong.link) ? '🟢' : '♫' }}
           </span>
           <div>
-            <h4>{{ activePlayerSong.title }}</h4>
+            <h4>{{ activePlayerSong.title }}</h4><SongBadge :song="activePlayerSong" />
             <p>{{ activePlayerSong.artist || 'Chưa có thông tin nghệ sĩ' }}</p>
           </div>
         </div>

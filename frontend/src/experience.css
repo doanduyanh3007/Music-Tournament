@@ -149,3 +149,101 @@ html[data-theme="dark"] .match-card.finale-match-card { background: linear-gradi
   .winner-stage *, .finale-match-card { animation: none !important; transition: none !important; }
   .winner-confetti, .winner-fireworks { display: none; }
 }
+
+/* Anime Final Boss: the champion owns the arena, with the real bracket as their story. */
+.anime-champion-stage { margin: 20px 0 24px; padding: 28px 32px; border: 1px solid #d7ba6e; border-radius: 18px; background: radial-gradient(ellipse at 5% 30%, #4b26a955, transparent 48%), radial-gradient(ellipse at 100% 35%, #086e8a44, transparent 55%), linear-gradient(120deg, #11142a, #16172c 55%, #0d1c2e); box-shadow: 0 0 0 4px #d7ba6e08, 0 20px 55px #070e2444, inset 0 0 80px #6d28d90a; }
+.anime-champion-stage::after { content: ''; position: absolute; z-index: -1; width: 440px; aspect-ratio: 1; left: -100px; top: 0; border: 1px solid #a78bfa20; border-radius: 50%; box-shadow: 0 0 0 36px #a78bfa06, 0 0 0 70px #22d3ee04; pointer-events: none; }
+.anime-champion-stage .winner-stage-top { padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid #c6b37826; }
+.anime-champion-stage .winner-stage-top > span:first-child { color: #91cfe6; letter-spacing: 2.4px; }
+.anime-champion-stage .winner-stage-grid { grid-template-columns: 250px minmax(0,1fr); gap: 38px; }
+.anime-champion-stage .winner-champion-chip { background: linear-gradient(110deg, #d4af5526, #ae824a1a); border-color: #c6a558; color: #ffe5a1; box-shadow: 0 0 24px #e6ba3c14; font-size: 11px; }
+.winner-champion-chip > span { font-size: 22px; line-height: 1; }
+.anime-champion-stage .winner-overline { color: #bdc2f9; letter-spacing: 2.1px; font-size: 10px; }
+.anime-champion-stage .winner-song-title { color: #fff0ba; animation: none; text-shadow: 0 0 25px #c7a85e20; }
+.anime-champion-stage.celebrating .winner-song-title { animation: winner-title-reveal 1s ease both; }
+.champion-particles { position: absolute; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+.champion-particles i { position: absolute; left: var(--particle-x); top: var(--particle-y); width: 2px; height: 2px; border-radius: 50%; background: #90e4fa; opacity: .45; box-shadow: 0 0 8px #67e8f9; }
+.champion-particles i:nth-child(2n) { background: #c4b5fd; box-shadow: 0 0 9px #a78bfa; width: 3px; height: 3px; }
+.celebrating .champion-particles i { animation: champion-sparks 5s ease-out both; }
+.boss-artwork { position: relative; display: grid; place-items: center; padding: 30px 0; isolation: isolate; min-width: 0; }
+.boss-aura { position: absolute; width: 265px; aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 30deg, #7c3aed40, #22d3ee30, #7c3aed40); filter: blur(25px); opacity: .6; z-index: -1; }
+.boss-artwork-frame { width: 208px; aspect-ratio: 1; padding: 5px; border: 1px solid #e4c36c; border-radius: 20px 6px 20px 6px; transform: rotate(-4deg); background: linear-gradient(145deg, #d4b66f66, #a78bfa22); box-shadow: 0 0 32px #8b5cf633, 10px 10px 0 #c6b3780c; }
+.boss-artwork-frame img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 15px 3px 15px 3px; }
+.boss-crown { position: absolute; top: -10px; z-index: 2; font-size: 48px; color: #e8cc7f; text-shadow: 0 0 20px #f9d77b55; }
+.celebrating .boss-crown { animation: crown-descent 1.2s ease both; }
+.boss-artwork-caption { position: relative; margin-top: 24px; font-size: 8px; font-weight: 700; letter-spacing: 2.6px; color: #bbcae3; }
+.boss-artwork .boss-vinyl { position: absolute; bottom: 22px; right: -2px; width: 84px; height: 84px; border-width: 2px; box-shadow: 0 5px 16px #0009; }
+.boss-vinyl .winner-record-label { width: 32px; height: 32px; border-width: 2px; }
+.boss-vinyl .winner-record-label span { width: 7px; height: 7px; border-width: 1px; }
+.champion-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 22px 0; gap: 9px; }
+.champion-stats > div { display: flex; flex-direction: column-reverse; gap: 6px; padding: 12px; border: 1px solid #a5b4fc2b; border-radius: 8px; background: #0a11254d; }
+.champion-stats dt { color: #aebed5; font-size: 10px; line-height: 1.5; }
+.champion-stats dd { color: #f2dc9c; font-size: 26px; line-height: 1.1; font-weight: 800; }
+.anime-champion-stage .winner-actions a { text-decoration: none; display: inline-flex; align-items: center; }
+.anime-champion-stage .winner-media-note { font-size: 11px; }
+.champion-road { position: relative; margin-top: 26px; padding-top: 24px; border-top: 1px solid #c6b37826; }
+.champion-road-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.champion-road-heading p { color: #91cfe6; font-size: 8px; letter-spacing: 2px; margin-bottom: 5px; }
+.champion-road-heading h3 { color: #e5d5a5; font-size: 13px; letter-spacing: 1.6px; }
+.champion-road-heading > span { color: #a9bad3; font-size: 10px; }
+.throne-road { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 9px; list-style: none; }
+.throne-road li { min-width: 0; padding: 12px; border: 1px solid #8c9cbe38; border-top: 2px solid #788cae; border-radius: 7px; background: #0c142766; display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
+.throne-road .road-win { border-top-color: #68d2d5; }
+.throne-road .road-final { border-color: #c0a563; border-top-color: #e2ca82; background: linear-gradient(130deg, #85712c22, #111b2e); }
+.throne-road .road-wildcard { border-top-color: #bca5ed; }
+.road-round { font-size: 10px; color: #adbed7; }
+.road-outcome { color: #99f1e5; font-size: 8px; font-weight: 800; letter-spacing: .5px; }
+.road-wildcard .road-outcome { color: #d2bcff; }
+.road-opponent { font-size: 11px; color: #f1f4fa; overflow-wrap: anywhere; }
+.road-opponent-label { color: #93a8c7; font-size: 9px; margin-bottom: -5px; }
+.throne-road li > small { color: #a9bad3; font-size: 10px; }
+.throne-road.road-expanded { grid-template-columns: repeat(auto-fit,minmax(min(100%,210px),1fr)); }
+.road-score { color: #f4d98e; font-size: 18px; font-weight: 700; }
+.road-score small { display: block; color: #a9bad3; font-size: 9px; font-weight: 400; margin-top: 4px; }
+.road-explanation { line-height: 1.5; }
+.song-status-badge { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; white-space: nowrap; font-size: 8px; font-weight: 800; line-height: 1.6; letter-spacing: .4px; padding: 2px 6px; border-radius: 5px; margin: 3px 0; width: fit-content; }
+.grand-champion-badge { color: #ffe4a0; background: linear-gradient(110deg, #624a1b, #413147); border: 1px solid #ae8d43; box-shadow: 0 0 12px #e8bc4d18; }
+.grand-champion-badge > span { font-size: 13px; }
+.finalist-badge { color: #a5f3fc; background: #164258; border: 1px solid #4b9caa; }
+.match-winner-badge { color: #a7f3d0; background: #174538; border: 1px solid #407b63; }
+:is(.match-song,.tree-match-song,.library-song).grand-champion-song { border-color: #c3a250 !important; box-shadow: inset 0 0 24px #b99b3b0d, 0 0 10px #b99b3b0d; opacity: 1; }
+.grand-champion-song :is(.song-cover-box,.tree-song-thumb) { border-color: #c3a250; }
+.result-match > .grand-champion-song { border-left: 2px solid #c3a250; padding-left: 8px; }
+.tree-song-text > .song-status-badge { font-size: 7px; padding: 1px 4px; max-width: 100%; white-space: normal; letter-spacing: .1px; }
+.provisional-podium .gold-card { border-color: #8794ce; background: #6d74b31a; box-shadow: none; }
+.provisional-podium .gold-cover { border-color: #a5b4fc; }
+.provisional-podium .gold-text { color: #e0e7ff; }
+.provisional-podium .step-1 { background: linear-gradient(#636698,#404865); }
+html[data-theme="dark"] .round-status-chip.chipCompleted { background: #18382f; border-color: #386450; }
+html[data-theme="dark"] .round-status-chip.chipClosed:not(.chipCompleted) { background: #30253a; border-color: #66506e; }
+html[data-theme="dark"] .chipCompleted .chip-name { color: #d1fae5; }
+html[data-theme="dark"] .chipCompleted .chip-state { color: #a7f3d0; }
+html[data-theme="dark"] .chip-toggle-btn.openAction { background: #244b40; color: #b7ead5; border-color: #4d7d68; }
+@keyframes crown-descent { from { opacity: 0; transform: translateY(-28px) scale(1.4); } to { opacity: 1; transform: none; } }
+@keyframes champion-sparks { from { opacity: 0; transform: translateY(45px); } 30% { opacity: .7; } to { opacity: .45; transform: none; } }
+@media (max-width: 900px) {
+  .anime-champion-stage .winner-stage-grid { grid-template-columns: 200px minmax(0,1fr); gap: 25px; }
+  .boss-artwork-frame { width: 174px; }
+  .boss-artwork .boss-vinyl { right: -8px; width: 70px; height: 70px; }
+}
+@media (max-width: 760px) {
+  .anime-champion-stage { padding: 20px 16px; }
+  .anime-champion-stage .winner-stage-top { justify-content: center; font-size: 8px; }
+  .anime-champion-stage .winner-stage-grid { grid-template-columns: minmax(0,1fr); gap: 18px; }
+  .boss-artwork { width: 230px; justify-self: center; }
+  .boss-artwork-frame { width: 184px; }
+  .boss-artwork .boss-vinyl { right: 3px; }
+  .champion-stats { text-align: center; gap: 6px; }
+  .champion-stats > div { padding: 10px 6px; }
+  .champion-stats dt { font-size: 9px; min-height: 3em; }
+  .champion-stats dd { font-size: 24px; }
+  .champion-road-heading { align-items: flex-start; flex-direction: column; }
+  .throne-road { display: flex; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+  .throne-road li { flex: 0 0 140px; scroll-snap-align: start; }
+  .throne-road.road-expanded { display: grid; grid-template-columns: minmax(0,1fr); overflow: visible; }
+  .winner-actions .winner-play-button { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anime-champion-stage *, .anime-champion-stage::after { animation: none !important; transition: none !important; }
+  .champion-particles { display: none; }
+}

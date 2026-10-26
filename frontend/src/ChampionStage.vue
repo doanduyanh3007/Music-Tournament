@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { findWinnerPreview, winnerEmbed, winnerLink } from './winnerMedia.js'
 
-const props = defineProps({ song: { type: Object, required: true }, tournamentName: String, artwork: String })
+const props = defineProps({ song: { type: Object, required: true }, championship: { type: Object, required: true }, claimCoronation: { type: Function, required: true }, tournamentName: String, artwork: String })
 const emit = defineEmits(['before-play', 'share'])
 const audio = ref(null)
 const media = ref(null)
@@ -11,8 +11,10 @@ const playing = ref(false)
 const embedActive = ref(false)
 const playbackMessage = ref('')
 const celebrating = ref(false)
+const roadExpanded = ref(false)
+const roadId = computed(() => `throne-road-${props.championship.resultKey?.replaceAll(':', '-')}`)
 const embed = computed(() => winnerEmbed(props.song.link))
-const artwork = computed(() => media.value?.artwork || props.artwork || '/logo.png')
+const artwork = computed(() => props.artwork && props.artwork !== '/logo.png' ? props.artwork : media.value?.artwork || '/logo.png')
 let controller, celebrationTimer, disposed = false
 
 async function celebrate() {
@@ -58,7 +60,8 @@ async function loadMedia() {
   media.value = null
   playbackMessage.value = ''
   loading.value = true
-  celebrate()
+  const coronation = props.claimCoronation()
+  if (coronation) celebrate()
   const timeout = setTimeout(() => request.abort(), 12000)
   try {
     const response = await fetch(`/api/search?q=${encodeURIComponent(`${props.song.title} ${props.song.artist || ''}`)}&limit=20`, { signal: request.signal })
@@ -74,7 +77,8 @@ async function loadMedia() {
   }
   if (controller !== request || disposed) return
   await nextTick()
-  if (media.value?.previewUrl) await play()
+  if (media.value?.previewUrl && coronation) await play()
+  else if (media.value?.previewUrl) playbackMessage.value = 'Nghe lại ca khúc đã chinh phục toàn bộ đấu trường.'
   else playbackMessage.value = embed.value
     ? 'Phát lại khoảnh khắc chiến thắng bằng nút bên dưới.'
     : 'Chưa có đoạn nghe thử cho bản thu này. Bạn có thể mở bài hát để nghe.'
@@ -96,25 +100,33 @@ function confettiStyle(n) {
 </script>
 
 <template>
-  <section class="winner-stage" :class="{celebrating, 'winner-is-playing':playing || embedActive}" aria-label="Vinh danh quán quân">
+  <section class="winner-stage anime-champion-stage" :class="{celebrating, 'winner-is-playing':playing || embedActive}" aria-label="Vinh danh quán quân">
+    <div class="champion-particles" aria-hidden="true"><i v-for="n in 16" :key="n" :style="{'--particle-x':`${(n*43)%100}%`,'--particle-y':`${(n*29)%100}%`}"></i></div>
     <div v-if="celebrating" class="winner-confetti" aria-hidden="true"><i v-for="n in 54" :key="n" :style="confettiStyle(n)"></i></div>
     <div v-if="celebrating" class="winner-fireworks" aria-hidden="true"><i v-for="n in 4" :key="n" :style="{'--burst-delay': `${n * .6}s`}">✧</i></div>
-    <div class="winner-stage-top"><span>✦ MUSIC TOURNAMENT</span><span class="winner-champion-chip">🏆 QUÁN QUÂN</span></div>
+    <div class="winner-stage-top"><span>THE ARENA HAS A NEW LEGEND</span><span class="winner-champion-chip"><span aria-hidden="true">♛</span> GRAND CHAMPION</span></div>
     <div class="winner-stage-grid">
-      <div class="winner-turntable" aria-hidden="true">
-        <div class="winner-record-halo"></div>
-        <div class="winner-record"><div class="winner-record-label"><img :src="artwork" alt="" @error="$event.target.src='/logo.png'"><span></span></div></div>
-        <div class="winner-tonearm"></div>
-        <span class="winner-record-caption">THE WINNING RECORD</span>
+      <div class="boss-artwork">
+        <div class="boss-aura" aria-hidden="true"></div>
+        <span class="boss-crown" aria-hidden="true">♛</span>
+        <div class="boss-artwork-frame"><img :src="artwork" :alt="`Artwork ${song.title}`" @error="$event.target.src='/logo.png'"></div>
+        <div class="winner-record boss-vinyl" aria-hidden="true"><div class="winner-record-label"><img :src="artwork" alt="" @error="$event.target.src='/logo.png'"><span></span></div></div>
+        <span class="boss-artwork-caption">THE LAST ONE STANDING</span>
       </div>
       <div class="winner-copy">
-        <p class="winner-overline">VÀ NGƯỜI CHIẾN THẮNG LÀ…</p>
+        <p class="winner-overline">THE ONE WHO CONQUERED IT ALL</p>
         <h2 class="winner-song-title" aria-live="polite">{{ song.title }}</h2>
         <p class="winner-artist">{{ song.artist || 'Nghệ sĩ chưa được cập nhật' }}</p>
         <p class="winner-tournament">Quán quân {{ tournamentName }}</p>
-        <div class="winner-equalizer" :class="{active:playing || embedActive}" aria-hidden="true"><i v-for="n in 18" :key="n" :style="{'--bar-height': `${12 + (n * 17) % 33}px`, '--bar-delay': `${n * .06}s`}"></i></div>
+        <dl class="champion-stats">
+          <div><dt>Đối thủ đã đánh bại</dt><dd>{{ championship.opponentsDefeated }}</dd></div>
+          <div><dt>Vòng đã vượt qua</dt><dd>{{ championship.roundsCleared }}</dd></div>
+          <div><dt>Bài hát tham gia</dt><dd>{{ championship.totalEntrants }}</dd></div>
+        </dl>
         <div class="winner-actions">
-          <button v-if="media?.previewUrl || embed" class="winner-play-button" :disabled="loading" @click="playing || embedActive ? stop() : play()">{{ playing || embedActive ? 'Ⅱ Dừng nhạc' : '▶ Phát lại bài chiến thắng' }}</button>
+          <button v-if="loading || media?.previewUrl || embed" class="winner-play-button" :disabled="loading" @click="playing || embedActive ? stop() : play()">{{ playing || embedActive ? 'Ⅱ Dừng nhạc' : loading ? '♫ Đang tải nhạc…' : '▶ Nghe bài hát' }}</button>
+          <a v-else class="winner-play-button" :href="winnerLink(song)" target="_blank" rel="noopener noreferrer">▶ Nghe bài hát ↗</a>
+          <button class="winner-secondary-button" :aria-expanded="roadExpanded" :aria-controls="roadId" @click="roadExpanded=!roadExpanded">{{ roadExpanded ? 'Thu gọn hành trình' : 'Xem hành trình' }} ↗</button>
           <button class="winner-secondary-button" @click="celebrate">✦ Tung pháo hoa</button>
           <button class="winner-secondary-button" @click="emit('share')">Sao chép danh hiệu</button>
         </div>
@@ -123,6 +135,18 @@ function confettiStyle(n) {
         <a :href="winnerLink(song)" target="_blank" rel="noopener noreferrer" class="winner-source-link">Mở bài hát ↗</a>
       </div>
     </div>
+    <section class="champion-road" aria-label="Hành trình vô địch">
+      <div class="champion-road-heading"><div><p>THE CHAMPION'S JOURNEY</p><h3>ROAD TO THE THRONE</h3></div><span>{{ championship.route[0]?.roundName }} → {{ championship.route.at(-1)?.roundName }}</span></div>
+      <ol :id="roadId" class="throne-road" :class="{'road-expanded':roadExpanded}">
+        <li v-for="step in championship.route" :key="step.matchId" :class="{'road-win':step.outcome==='win','road-final':step.roundIndex===championship.finalRound.index,'road-wildcard':step.outcome==='wildcard'}">
+          <span class="road-round">{{ step.roundName }}</span>
+          <span class="road-outcome">{{ step.outcome==='win' ? '✓ WINNER' : step.outcome==='bye' ? 'VÀO THẲNG' : step.outcome==='wildcard' ? '↗ WILDCARD' : 'THUA TRẬN' }}</span>
+          <span v-if="step.opponent" class="road-opponent-label">{{ step.outcome==='win' ? 'Đã đánh bại' : 'Đối thủ' }}</span>
+          <b class="road-opponent">{{ step.opponent?.title || 'Vé vào thẳng' }}</b>
+          <template v-if="roadExpanded"><small>{{ step.opponent?.artist || 'Không có đối thủ ở vòng này' }}</small><span v-if="step.opponent" class="road-score">{{ step.votesFor }} : {{ step.votesAgainst }} <small>phiếu của quán quân : đối thủ</small></span><small v-if="step.outcome==='wildcard'" class="road-explanation">Thua trận, tiếp tục hành trình bằng vé đặc cách.</small></template>
+        </li>
+      </ol>
+    </section>
     <div v-if="media?.previewUrl" class="winner-audio-panel"><span>♫ Đoạn nhạc chiến thắng · tối đa 30 giây</span>
       <audio ref="audio" :src="media.previewUrl" controls preload="none" @play="emit('before-play'); playing=true" @pause="playing=false" @ended="playing=false" @timeupdate="limitExcerpt" @error="playing=false; playbackMessage='Không thể tải đoạn nhạc lúc này. Hãy thử lại hoặc mở bài hát.'"></audio>
     </div>

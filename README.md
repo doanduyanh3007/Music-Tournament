@@ -24,6 +24,10 @@ Website bình chọn bài hát theo thể thức loại trực tiếp.
 - Giao diện tối đồng bộ màu nền/chữ/bảng/biểu mẫu; chỉ một nút đóng/mở sidebar ở thanh đầu trang
 - Trận chung kết duy nhất được căn giữa, có tiêu đề và hiệu ứng viền riêng
 - Sân khấu vinh danh quán quân dùng đĩa nhạc, ảnh bài hát, chữ công bố và pháo giấy tự chạy; có thể tung lại hiệu ứng
+- Trang Vòng đấu đặt sân khấu **Anime Final Boss — GRAND CHAMPION** ngay dưới tiến độ, trước điều khiển vòng. Artwork, hào quang tím–xanh và viền vàng đi cùng thông điệp **THE ONE WHO CONQUERED IT ALL**
+- **ROAD TO THE THRONE** lấy đối thủ, tên vòng và tỷ số từ bracket thật. Thống kê đếm đối thủ thực sự bị đánh bại, vòng đã đi tiếp và số bài đăng ký; vé vào thẳng và wildcard được thể hiện riêng
+- Dùng chung huy hiệu **WINNER / FINALIST / ♛ GRAND CHAMPION** cho cặp đấu, sơ đồ cây, danh sách bài, bảng xếp hạng, Kết quả và trình nghe. Bài dẫn đầu khi giải còn diễn ra chỉ có thứ hạng tạm thời
+- Đăng quang tự chạy một lần cho mỗi kết quả trong phiên trình duyệt, không lặp khi polling/đổi trang/tải lại. Khi nhận dữ liệu reset, giao diện xóa quán quân, hành trình và ghi nhớ đăng quang cũ; khi có kết quả mới có thể đăng quang lại. Giải đã đóng vẫn được kiểm tra cập nhật trên các trang theo dõi
 - Tìm đoạn nghe thử khớp chính xác tên bài và nghệ sĩ qua API tìm kiếm sẵn có, phát tối đa 30 giây với nút dừng/phát lại. Nếu trình duyệt chặn tự phát, dùng trình nghe trên sân khấu; nếu thiếu bản nghe thử, dùng trình phát YouTube/Spotify từ link bản thu hoặc mở link bài hát. Đổi trang sẽ dừng nhạc; cập nhật phiếu trực tiếp không làm nhạc khởi động lại. Hiệu ứng tôn trọng tùy chọn giảm chuyển động của thiết bị
 - API backend lưu dữ liệu trong database
 
@@ -104,4 +108,6 @@ mvn test
 Kiểm thử backend dùng H2 trong bộ nhớ, độc lập với dữ liệu thật. Khi deploy, cấu hình `ddl-auto=update` hiện có sẽ bổ sung hai cột nullable `display_name` và `reason` vào `votes`, giữ các phiếu cũ. Các giải cũ đã chứa bài trùng cần được admin tạo lại với danh sách đã làm sạch; hệ thống chặn vote cặp có cùng tên bài và nghệ sĩ. Các bản cover cùng tên nhưng khác nghệ sĩ được phép tham gia.
 
 ## Ghi chú
+Luồng tạo giải đã sửa lỗi hoán đổi nghệ sĩ có thể làm lặp/mất bài và phân biệt ô chờ đối thủ với vé vào thẳng. Bản cập nhật giữ dữ liệu giải đã có; nếu một giải cũ đã có bài lặp/mất trong nhánh, quản trị viên cần tạo lại giải từ danh sách đúng trước khi dùng nhánh đó để ghi nhận thành tích.
+
 Đây là nền tảng chạy local để phát triển tiếp. Muốn nhiều người truy cập từ Internet, bạn cần deploy frontend/backend và database lên hosting, đồng thời thay mã quản trị demo bằng xác thực an toàn.
