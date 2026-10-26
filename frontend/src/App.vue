@@ -149,7 +149,7 @@ const votePageSize = ref(8)
 const voteFilter = ref('all') // 'all' | 'unvoted' | 'voted' | 'completed'
 
 // Tree zoom & screen fit
-const treeScale = ref(0.7)
+const treeScale = ref(1)
 const isTreeFitScreen = ref(true)
 
 // File upload ref
@@ -1364,11 +1364,8 @@ function toggleFitScreen() {
 }
 
 function autoFitTree() {
-  const total = tournament.value?.songs?.length || 32
-  if (total >= 64) treeScale.value = 0.58
-  else if (total >= 48) treeScale.value = 0.65
-  else if (total >= 32) treeScale.value = 0.75
-  else treeScale.value = 0.90
+  // The bracket columns now share the available width, so fitting means 100%.
+  treeScale.value = 1.0
 }
 
 // Vote pagination & filters
@@ -2014,7 +2011,7 @@ onUnmounted(() => {
               <div class="stadium-glow"></div>
             </div>
 
-            <div class="bracket-tree-scroll world-cup-tree" :style="{ transform: 'scale(' + treeScale + ')', transformOrigin: 'top center' }">
+            <div class="bracket-tree-scroll world-cup-tree" :class="{fitScreen: isTreeFitScreen}" :style="{ transform: 'scale(' + treeScale + ')', transformOrigin: 'top center' }">
               <!-- CÁNH TRÁI (LEFT WING) -->
               <div class="bracket-wing left-wing">
                 <div v-for="col in worldCupBracket.leftColumns" :key="'left-'+col.roundIndex" class="tree-round-column">
