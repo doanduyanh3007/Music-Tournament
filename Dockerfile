@@ -18,6 +18,8 @@ RUN mvn package -DskipTests -B
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 COPY --from=backend-builder /app/backend/target/*.jar app.jar
+# /app/data không còn cần thiết khi dùng PostgreSQL cloud
+# Giữ lại để tương thích nếu fallback H2 local
 RUN mkdir -p /app/data
 ENV PORT=8080
 EXPOSE 8080
