@@ -2031,6 +2031,541 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .footer span { padding: 0 8px; }
 
+/* ─── Logo Styling ─── */
+.brand-avatar-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #818cf8;
+  box-shadow: 0 0 10px rgba(129, 140, 248, 0.45);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e1e36;
+}
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sidebar-brand-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 8px;
+}
+.sidebar-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #818cf8;
+  flex-shrink: 0;
+}
+.sidebar-brand-text b {
+  display: block;
+  font-size: 12px;
+  color: #fff;
+  line-height: 1.2;
+}
+.sidebar-brand-text small {
+  display: block;
+  font-size: 10px;
+  color: #818cf8;
+}
+
+/* ─── Song Search Panel (YouTube & Spotify) ─── */
+.song-search-container {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.search-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.search-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #1e293b;
+}
+.search-icon {
+  font-size: 16px;
+}
+.search-filter-pills {
+  display: flex;
+  gap: 6px;
+}
+.pill-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pill-btn:hover {
+  border-color: #94a3b8;
+  color: #334155;
+}
+.pill-btn.active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+}
+.search-input-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.search-input-field {
+  flex: 1;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.search-input-field:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+.search-submit-btn {
+  padding: 9px 16px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.search-tags-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.tag-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+.genre-tag-chip {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.genre-tag-chip:hover {
+  background: #4338ca;
+  color: #ffffff;
+}
+.search-results-panel {
+  margin-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+.results-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #475569;
+}
+.search-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.search-song-card {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  gap: 10px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.search-song-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+.search-card-art {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #e2e8f0;
+}
+.search-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.search-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #94a3b8;
+}
+.card-play-preview-btn {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.search-card-art:hover .card-play-preview-btn,
+.card-play-preview-btn.isPlaying {
+  opacity: 1;
+}
+.card-play-preview-btn.isPlaying {
+  background: rgba(16, 185, 129, 0.7);
+}
+.search-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+.search-card-meta b {
+  display: block;
+  font-size: 12px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-card-meta small {
+  display: block;
+  font-size: 10.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.genre-badge {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 3px;
+}
+.search-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.spotify-action-btn {
+  padding: 2px 6px;
+  font-size: 9px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.spotify-action-btn:hover {
+  background: #1ed760;
+  color: #000;
+}
+.yt-action-btn {
+  padding: 2px 6px;
+  font-size: 9px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.yt-action-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+.add-song-btn {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ─── Grand Champion Celebration Stage (Spectacular Final UI) ─── */
+.grand-champion-stage {
+  position: relative;
+  background: radial-gradient(circle at 50% 30%, #2a1f0a 0%, #151108 55%, #0a0804 100%);
+  border: 2px solid #eab308;
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  margin-top: 16px;
+  margin-bottom: 20px;
+  color: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 10px 30px -5px rgba(234, 179, 8, 0.35), 0 0 25px rgba(234, 179, 8, 0.2);
+}
+.champion-glow-aura {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 20%, rgba(234, 179, 8, 0.25) 0%, transparent 65%);
+  pointer-events: none;
+}
+.confetti-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.confetti-dot {
+  position: absolute;
+  top: -10px;
+  width: 7px;
+  height: 12px;
+  border-radius: 2px;
+  animation: fall-confetti 3.2s linear infinite;
+  opacity: 0.85;
+}
+@keyframes fall-confetti {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(350px) rotate(720deg); opacity: 0; }
+}
+
+.champion-stage-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.champion-stage-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 140px;
+  height: 140px;
+}
+.trophy-laurel {
+  position: absolute;
+  top: -8px;
+  font-size: 32px;
+  z-index: 5;
+  filter: drop-shadow(0 2px 8px rgba(234, 179, 8, 0.7));
+  animation: float-laurel 2.5s ease-in-out infinite;
+}
+@keyframes float-laurel {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.stage-trophy-gold {
+  position: relative;
+  z-index: 4;
+  font-size: 64px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 16px rgba(234, 179, 8, 0.8));
+}
+.vinyl-record {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #222 20%, #111 25%, #222 30%, #111 40%, #222 50%, #111 60%, #1e1e1e 75%, #050505 100%);
+  border: 3px solid #ca8a04;
+  box-shadow: 0 0 25px rgba(202, 138, 4, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0.9;
+}
+.vinyl-record.spinning {
+  animation: spin-vinyl 10s linear infinite;
+}
+@keyframes spin-vinyl {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.vinyl-center-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #eab308;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vinyl-mini-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.champion-stage-text {
+  flex: 1;
+  min-width: 0;
+}
+.champion-royal-badge {
+  display: inline-block;
+  background: linear-gradient(90deg, #ca8a04, #eab308, #ca8a04);
+  color: #422006;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 10px rgba(234, 179, 8, 0.4);
+  margin-bottom: 8px;
+}
+.champion-epic-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #fef08a;
+  text-shadow: 0 2px 10px rgba(234, 179, 8, 0.5);
+  line-height: 1.2;
+}
+.champion-epic-artist {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 10px;
+  font-size: 15px;
+  color: #fef9c3;
+  font-weight: 600;
+}
+.animated-soundbars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 14px;
+}
+.animated-soundbars i {
+  display: block;
+  width: 3px;
+  background: #eab308;
+  border-radius: 1px;
+  animation: soundbar-jump 1.2s ease-in-out infinite alternate;
+}
+.animated-soundbars i:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+.animated-soundbars i:nth-child(2) { height: 12px; animation-delay: 0.3s; }
+.animated-soundbars i:nth-child(3) { height: 8px; animation-delay: 0.2s; }
+.animated-soundbars i:nth-child(4) { height: 14px; animation-delay: 0.4s; }
+.animated-soundbars i:nth-child(5) { height: 10px; animation-delay: 0.15s; }
+@keyframes soundbar-jump {
+  0% { transform: scaleY(0.4); }
+  100% { transform: scaleY(1); }
+}
+.champion-quote {
+  font-size: 12px;
+  color: #d1d5db;
+  font-style: italic;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+.champion-stage-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.champion-listen-btn {
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  color: #422006;
+  font-weight: 800;
+  border: 1px solid #fef08a;
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.4);
+  padding: 8px 16px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.champion-listen-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.champion-listen-btn.spotifyChampBtn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  border-color: #86efac;
+}
+.champion-confetti-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.champion-confetti-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.champion-share-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.champion-share-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
 /* ─── Responsive: Tablet ─── */
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: minmax(0, 1fr); }

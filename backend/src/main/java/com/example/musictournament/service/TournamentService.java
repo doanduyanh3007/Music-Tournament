@@ -128,8 +128,8 @@ public class TournamentService {
             finalMatch.setGroupName("MAIN");
             matchesToSave.add(finalMatch);
 
-        } else if (totalSongs > 48) {
-            // Linh hoạt nếu > 48 bài: Chia đều 2 nhóm A & B
+        } else if (totalSongs > 64) {
+            // Linh hoạt nếu > 64 bài: Chia đều 2 nhóm A & B
             int halfA = totalSongs / 2;
             List<Song> groupA = entrants.subList(0, halfA);
             List<Song> groupB = entrants.subList(halfA, totalSongs);
@@ -563,6 +563,9 @@ public class TournamentService {
         if (index == totalRounds - 1) return "Chung kết";
         if (index == totalRounds - 2) return "Bán kết";
         if (index == totalRounds - 3) return "Tứ kết";
+        if (index == totalRounds - 4) return "Vòng 16";
+        if (index == totalRounds - 5) return "Vòng 32";
+        if (index == totalRounds - 6) return "Vòng 64";
         if (index == 0) return "Vòng 1";
         return "Vòng " + (index + 1);
     }

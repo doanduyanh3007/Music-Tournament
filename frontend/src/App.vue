@@ -374,8 +374,182 @@ Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
       'Sugar Song to Bitter Step — UNISON SQUARE GARDEN'
     ]
     songText.value = list48.join('\n')
+  } else if (count === 64) {
+    const list64 = [
+      'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
+      'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
+      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
+      'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
+      'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
+      'Again — YUI | https://youtu.be/2DYYVp4QXew',
+      'Cry Baby — Official HIGE DANdism | https://youtu.be/O1bhZgkC4Gw',
+      'KICK BACK — Kenshi Yonezu | https://youtu.be/M2cckDmNLMI',
+      'Shinunoga E-Wa — Fujii Kaze | https://youtu.be/dusrG66olzo',
+      'Bling-Bang-Bang-Born — Creepy Nuts | https://youtu.be/mLW35YMz1eo',
+      'Suzume — RADWIMPS feat. Toaka | https://youtu.be/grasqUvQ2X0',
+      'SPECIALZ — King Gnu | https://youtu.be/fhzKLBZJC3w',
+      'Nandemonaiya — RADWIMPS | https://youtu.be/n3e6M521rso',
+      'Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k',
+      'Racing Into The Night (Yoru ni Kakeru) — YOASOBI',
+      'Monster — YOASOBI',
+      'Chouchou Musubi — Aimer',
+      'Zankyosanka — Aimer',
+      'Crossing Field — LiSA',
+      'Catch the Moment — LiSA',
+      'Inferno — Mrs. GREEN APPLE',
+      'Ao to Natsu — Mrs. GREEN APPLE',
+      'Peace Sign — Kenshi Yonezu',
+      'Grand Escape — RADWIMPS feat. Toko Miura',
+      'Otonablue — ATARASHII GAKKO!',
+      'Kaibutsu — YOASOBI',
+      'First Love — Hikaru Utada',
+      'One Last Kiss — Hikaru Utada',
+      'Homura — LiSA',
+      'DADDY ! DADDY ! DO ! — Masayuki Suzuki feat. Airi Suzuki',
+      'Shunkan Sentimental — SCANDAL',
+      'Haruka Kanata — ASIAN KUNG-FU GENERATION',
+      'GO!!! — FLOW',
+      'Sign — FLOW',
+      'Colors — FLOW',
+      'The Rumbling — SiM',
+      'Red Swan — YOSHIKI feat. HYDE',
+      'Boku no Sensou — Shinsei Kamattechan',
+      'Akuma no Ko — Ai Higuchi',
+      'Fiction — sumika',
+      'Kibou no Uta — Ultra Tower',
+      'Fly High!! — BURNOUT SYNDROMES',
+      'Hikariare — BURNOUT SYNDROMES',
+      'Phantom Minds — Nana Mizuki',
+      'Renai Circulation — Kana Hanazawa',
+      'Sugar Song to Bitter Step — UNISON SQUARE GARDEN',
+      'A Cruel Angels Thesis — Yoko Takahashi',
+      'Tank! — The Seatbelts',
+      'Connect — ClariS',
+      'Only My Railgun — fripSide',
+      'Brave Shine — Aimer',
+      'Flyers — BRADIO',
+      'Hacking to the Gate — Kanako Ito',
+      'My Dearest — supercell',
+      'Kimi no Shiranai Monogatari — supercell',
+      'History Maker — DEAN FUJIOKA',
+      'Tabi no Tochuu — Natsumi Kiyoura',
+      'Seishun Kyousoukyoku — Sambomaster',
+      'Drivers High — L\'Arc~en~Ciel',
+      'Kizuna no Kiseki — MAN WITH A MISSION x milet',
+      'Chainsaw Blood — Vaundy',
+      'Kaijuu no Hanauta — Vaundy'
+    ]
+    songText.value = list64.join('\n')
   }
   flash(`Đã nạp bộ mẫu chuẩn ${count} bài!`)
+}
+
+// ─── Song Search (YouTube & Spotify / iTunes API) ───
+const searchQuery = ref('')
+const searchFilter = ref('all') // 'all' | 'spotify' | 'youtube'
+const searchResults = ref([])
+const searchLoading = ref(false)
+const activePreviewUrl = ref('')
+let previewAudio = null
+const quickTags = ['🔥 Anime Hits', '🎵 YOASOBI', '⭐ V-Pop Top', '🎧 K-Pop', '🎸 J-Rock']
+
+// Celebration state
+const isCelebrationActive = ref(false)
+const isVinylSpinning = ref(true)
+
+async function executeSearch() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  searchLoading.value = true
+  try {
+    const res = await api(`/search?q=${encodeURIComponent(q)}&limit=16`)
+    searchResults.value = res.results || []
+    if (!searchResults.value.length) {
+      flash('Không tìm thấy kết quả. Thử từ khóa khác nhé!')
+    }
+  } catch (err) {
+    flash('Không thể tìm kiếm bài hát lúc này, hãy thử lại!')
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+function quickSearch(tag) {
+  const clean = tag.replace(/^[^\w\s\u00C0-\u1EF9]+/, '').trim()
+  searchQuery.value = clean
+  executeSearch()
+}
+
+const filteredSearchResults = computed(() => {
+  return searchResults.value
+})
+
+function addSongFromSearch(item) {
+  const formatted = item.formattedText || `${item.title} — ${item.artist} | ${item.youtubeUrl}`
+  const existing = songText.value.trim()
+  songText.value = existing ? `${existing}\n${formatted}` : formatted
+  flash(`✓ Đã thêm "${item.title}" vào danh sách! 🎵`)
+}
+
+function addAllSearchResults() {
+  if (!searchResults.value.length) return
+  const lines = searchResults.value.map(item => item.formattedText || `${item.title} — ${item.artist} | ${item.youtubeUrl}`)
+  const existing = songText.value.trim()
+  songText.value = existing ? `${existing}\n${lines.join('\n')}` : lines.join('\n')
+  flash(`✓ Đã thêm toàn bộ ${searchResults.value.length} bài hát vào danh sách! 🚀`)
+}
+
+function toggleAudioPreview(url) {
+  if (!url) return
+  if (activePreviewUrl.value === url) {
+    if (previewAudio) {
+      previewAudio.pause()
+      previewAudio = null
+    }
+    activePreviewUrl.value = ''
+    return
+  }
+  if (previewAudio) {
+    previewAudio.pause()
+  }
+  previewAudio = new Audio(url)
+  activePreviewUrl.value = url
+  previewAudio.play().catch(() => {
+    activePreviewUrl.value = ''
+  })
+  previewAudio.onended = () => {
+    activePreviewUrl.value = ''
+  }
+}
+
+function triggerCelebration() {
+  isCelebrationActive.value = true
+  flash('🎉 Tung pháo hoa chúc mừng Quán quân vô địch! 🏆')
+  setTimeout(() => { isCelebrationActive.value = false }, 5000)
+}
+
+function copyChampionTitle() {
+  if (!champion.value) return
+  const text = `🏆 QUÁN QUÂN: ${champion.value.title} — ${champion.value.artist} (${tournament.value?.name || 'Music Tournament'})`
+  navigator.clipboard?.writeText?.(text).then(() => {
+    flash('Đã sao chép vinh danh Quán quân vào clipboard! 📋')
+  })
+}
+
+function confettiStyle(n) {
+  const left = (n * 4.1) % 100
+  const delay = ((n * 0.23) % 2.5).toFixed(2)
+  const duration = (2.2 + ((n * 0.31) % 2)).toFixed(2)
+  const colors = ['#f59e0b', '#ec4899', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#fbbf24']
+  const color = colors[n % colors.length]
+  return {
+    left: `${left}%`,
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    backgroundColor: color
+  }
 }
 
 // ─── Create Tournament with Seeding & Round Config ───
@@ -600,6 +774,15 @@ const worldCupBracket = computed(() => {
       } else if (r === numRounds - 3) {
         leftName = 'Tứ kết (Trái)'
         rightName = 'Tứ kết (Phải)'
+      } else if (r === numRounds - 4) {
+        leftName = 'Vòng 16 (Trái)'
+        rightName = 'Vòng 16 (Phải)'
+      } else if (r === numRounds - 5) {
+        leftName = 'Vòng 32 (Trái)'
+        rightName = 'Vòng 32 (Phải)'
+      } else if (r === numRounds - 6) {
+        leftName = 'Vòng 64 (Trái)'
+        rightName = 'Vòng 64 (Phải)'
       } else {
         leftName = `${round.name} (Trái)`
         rightName = `${round.name} (Phải)`
@@ -658,7 +841,9 @@ onUnmounted(() => {
     <button class="btn sidebar-toggle-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu để tiết kiệm diện tích'">
       {{ isSidebarCollapsed ? '☰' : '◀' }}
     </button>
-    <div class="brand-mark">♫</div>
+    <div class="brand-avatar-box">
+      <img src="/logo.png" alt="Music Tournament Logo" class="brand-logo-img">
+    </div>
     <div class="brand-copy"><h1>Music Tournament</h1><p>Giải đấu bài hát · tìm ra quán quân</p></div>
     <div class="top-spacer"></div><span class="top-slogan">Cùng chọn ra bài hát hay nhất! ♪</span>
     <button class="btn top-btn" @click="exportResults" :disabled="!tournament">⇩ Xuất kết quả</button>
@@ -667,8 +852,15 @@ onUnmounted(() => {
   <div class="shell" :class="{sidebarCollapsed: isSidebarCollapsed}">
     <aside class="sidebar" :class="{collapsed: isSidebarCollapsed}">
       <div class="sidebar-header-row">
+        <div v-show="!isSidebarCollapsed" class="sidebar-brand-preview">
+          <img src="/logo.png" alt="Logo" class="sidebar-logo-img">
+          <div class="sidebar-brand-text">
+            <b>Music Arena</b>
+            <small>Championship 2026</small>
+          </div>
+        </div>
         <button class="aside-fold-btn" @click="isSidebarCollapsed = !isSidebarCollapsed" :title="isSidebarCollapsed ? 'Mở rộng menu' : 'Đóng menu'">
-          {{ isSidebarCollapsed ? '▶ Mở menu' : '◀ Thu gọn' }}
+          {{ isSidebarCollapsed ? '▶ Mở' : '◀ Thu gọn' }}
         </button>
       </div>
       <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
@@ -725,8 +917,80 @@ onUnmounted(() => {
                 <button class="btn mini-btn" @click="loadPreset(16)">16 bài</button>
                 <button class="btn mini-btn" @click="loadPreset(32)">32 bài</button>
                 <button class="btn mini-btn" @click="loadPreset(48)">48 bài (A/B + Wildcard)</button>
+                <button class="btn mini-btn" @click="loadPreset(64)">64 bài</button>
               </div>
               <button v-if="parsedSongs.length > 1" class="btn mini-btn" @click="shuffleSongList" title="Xáo trộn danh sách bài">🔀 Xáo trộn</button>
+            </div>
+
+            <!-- SEARCH PANEL: TÌM BÀI HÁT QUA YOUTUBE & SPOTIFY -->
+            <div class="song-search-container">
+              <div class="search-head-row">
+                <div class="search-title">
+                  <span class="search-icon">🔍</span>
+                  <b>Tìm & Thêm bài hát nhanh qua YouTube & Spotify</b>
+                </div>
+                <div class="search-filter-pills">
+                  <button class="pill-btn" :class="{active: searchFilter==='all'}" @click="searchFilter='all'">Tất cả</button>
+                  <button class="pill-btn" :class="{active: searchFilter==='spotify'}" @click="searchFilter='spotify'">🟢 Spotify</button>
+                  <button class="pill-btn" :class="{active: searchFilter==='youtube'}" @click="searchFilter='youtube'">🔴 YouTube</button>
+                </div>
+              </div>
+
+              <div class="search-input-box">
+                <input
+                  v-model="searchQuery"
+                  @keydown.enter.prevent="executeSearch"
+                  placeholder="Nhập tên bài hát hoặc ca sĩ (VD: YOASOBI, Lemon, Sơn Tùng, Jujutsu Kaisen...)"
+                  class="search-input-field"
+                >
+                <button class="btn primary search-submit-btn" :disabled="searchLoading" @click="executeSearch">
+                  {{ searchLoading ? '⏳ Đang tìm...' : '🔍 Tìm kiếm' }}
+                </button>
+              </div>
+
+              <!-- Quick Genre Suggestions -->
+              <div class="search-tags-bar">
+                <span class="tag-label">Gợi ý hot:</span>
+                <button v-for="tag in quickTags" :key="tag" class="genre-tag-chip" @click="quickSearch(tag)">
+                  {{ tag }}
+                </button>
+              </div>
+
+              <!-- Search Results -->
+              <div v-if="searchResults.length > 0" class="search-results-panel">
+                <div class="results-toolbar">
+                  <span>Tìm thấy <b>{{ filteredSearchResults.length }}</b> bài hát:</span>
+                  <button class="btn mini-btn primary" @click="addAllSearchResults">＋ Thêm tất cả vào danh sách</button>
+                </div>
+
+                <div class="search-cards-grid">
+                  <div v-for="(item, idx) in filteredSearchResults" :key="idx" class="search-song-card">
+                    <div class="search-card-art">
+                      <img v-if="item.artwork" :src="item.artwork" :alt="item.title" class="search-thumb-img">
+                      <span v-else class="search-thumb-fallback">♫</span>
+                      <button v-if="item.previewUrl" class="card-play-preview-btn" :class="{isPlaying: activePreviewUrl===item.previewUrl}" @click="toggleAudioPreview(item.previewUrl)" title="Nghe thử đoạn 30s">
+                        {{ activePreviewUrl===item.previewUrl ? '⏸' : '▶' }}
+                      </button>
+                    </div>
+                    <div class="search-card-meta">
+                      <b :title="item.title">{{ item.title }}</b>
+                      <small :title="item.artist">{{ item.artist || '—' }}</small>
+                      <span class="genre-badge">{{ item.genre }}</span>
+                    </div>
+                    <div class="search-card-actions">
+                      <a :href="item.spotifyUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn spotify-action-btn" title="Mở trên Spotify">
+                        🟢 Spotify
+                      </a>
+                      <a :href="item.youtubeUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn yt-action-btn" title="Tìm trên YouTube">
+                        🔴 YouTube
+                      </a>
+                      <button class="btn mini-btn primary add-song-btn" @click="addSongFromSearch(item)" title="Thêm bài này vào danh sách giải đấu">
+                        ＋ Thêm
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <label class="textarea-label">
@@ -1142,7 +1406,51 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="champion" class="champion-banner"><div class="champion-cup">🏆</div><div><small>CHAMPION</small><h3>{{ champion.title }}</h3><p>{{ champion.artist }} · Quán quân của giải đấu!</p></div></div>
+          <!-- GRAND CHAMPION CELEBRATION STAGE -->
+          <div v-if="champion" class="grand-champion-stage">
+            <div class="champion-glow-aura"></div>
+            <div v-if="isCelebrationActive" class="confetti-container">
+              <span v-for="n in 28" :key="n" class="confetti-dot" :style="confettiStyle(n)"></span>
+            </div>
+
+            <div class="champion-stage-content">
+              <div class="champion-stage-visual">
+                <div class="trophy-laurel">👑</div>
+                <div class="stage-trophy-gold">🏆</div>
+                <div class="vinyl-record" :class="{spinning: isVinylSpinning}">
+                  <div class="vinyl-center-art">
+                    <img src="/logo.png" alt="Logo" class="vinyl-mini-logo">
+                  </div>
+                </div>
+              </div>
+
+              <div class="champion-stage-text">
+                <div class="champion-royal-badge">
+                  <span>★ QUÁN QUÂN VÔ ĐỊCH TOÀN GIẢI · GRAND CHAMPION ★</span>
+                </div>
+                <h2 class="champion-epic-title">{{ champion.title }}</h2>
+                <div class="champion-epic-artist">
+                  <b>{{ champion.artist || 'Nghệ sĩ xuất sắc' }}</b>
+                  <span class="animated-soundbars" title="Âm thanh chiến thắng">
+                    <i></i><i></i><i></i><i></i><i></i>
+                  </span>
+                </div>
+                <p class="champion-quote">“Bài hát chạm đến trái tim của đông đảo khán giả và xuất sắc đăng quang ngôi vị quán quân!”</p>
+
+                <div class="champion-stage-actions">
+                  <button v-if="champion.link" class="btn champion-listen-btn" :class="{spotifyChampBtn: isSpotifyLink(champion.link)}" @click="playSong(champion)">
+                    {{ isSpotifyLink(champion.link) ? '🟢 Nghe trên Spotify' : '▶ Nghe bài hát Quán Quân' }}
+                  </button>
+                  <button class="btn champion-confetti-btn" @click="triggerCelebration">
+                    🎉 Tung pháo hoa ăn mừng
+                  </button>
+                  <button class="btn champion-share-btn" @click="copyChampionTitle">
+                    📋 Sao chép danh hiệu
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div v-if="showAdmin" class="admin-tools">
             <h3>🔐 Quản trị toàn giải</h3>
             <div class="admin-actions">
@@ -1158,7 +1466,51 @@ onUnmounted(() => {
         <div class="section-head"><div><span class="mini-icon">🏆</span><h3>Bảng kết quả</h3></div><button class="btn primary" @click="exportResults" :disabled="!tournament">⇩ Xuất TXT</button></div>
         <p v-if="!tournament" class="muted">Chọn giải đấu từ trang Tổng quan để xem kết quả.</p>
         <template v-else>
-          <div v-if="champion" class="champion-banner"><div class="champion-cup">🏆</div><div><small>QUÁN QUÂN</small><h3>{{ champion.title }}</h3><p>{{ champion.artist }}</p></div></div>
+          <!-- GRAND CHAMPION CELEBRATION STAGE -->
+          <div v-if="champion" class="grand-champion-stage">
+            <div class="champion-glow-aura"></div>
+            <div v-if="isCelebrationActive" class="confetti-container">
+              <span v-for="n in 28" :key="n" class="confetti-dot" :style="confettiStyle(n)"></span>
+            </div>
+
+            <div class="champion-stage-content">
+              <div class="champion-stage-visual">
+                <div class="trophy-laurel">👑</div>
+                <div class="stage-trophy-gold">🏆</div>
+                <div class="vinyl-record" :class="{spinning: isVinylSpinning}">
+                  <div class="vinyl-center-art">
+                    <img src="/logo.png" alt="Logo" class="vinyl-mini-logo">
+                  </div>
+                </div>
+              </div>
+
+              <div class="champion-stage-text">
+                <div class="champion-royal-badge">
+                  <span>★ QUÁN QUÂN VÔ ĐỊCH TOÀN GIẢI · GRAND CHAMPION ★</span>
+                </div>
+                <h2 class="champion-epic-title">{{ champion.title }}</h2>
+                <div class="champion-epic-artist">
+                  <b>{{ champion.artist || 'Nghệ sĩ xuất sắc' }}</b>
+                  <span class="animated-soundbars" title="Âm thanh chiến thắng">
+                    <i></i><i></i><i></i><i></i><i></i>
+                  </span>
+                </div>
+                <p class="champion-quote">“Bài hát chạm đến trái tim của đông đảo khán giả và xuất sắc đăng quang ngôi vị quán quân!”</p>
+
+                <div class="champion-stage-actions">
+                  <button v-if="champion.link" class="btn champion-listen-btn" :class="{spotifyChampBtn: isSpotifyLink(champion.link)}" @click="playSong(champion)">
+                    {{ isSpotifyLink(champion.link) ? '🟢 Nghe trên Spotify' : '▶ Nghe bài hát Quán Quân' }}
+                  </button>
+                  <button class="btn champion-confetti-btn" @click="triggerCelebration">
+                    🎉 Tung pháo hoa ăn mừng
+                  </button>
+                  <button class="btn champion-share-btn" @click="copyChampionTitle">
+                    📋 Sao chép danh hiệu
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div v-for="round in tournament.rounds" :key="round.index" class="result-round"><h4>{{ round.name }}</h4><div v-for="m in round.matches.filter(m=>m.songA||m.songB)" :key="m.id" class="result-match"><div><b>{{ m.songA?.title || 'Chưa xác định' }}</b><small>{{ m.songA?.artist }}</small></div><span class="score">{{ m.votesA }} : {{ m.votesB }}</span><div><b>{{ m.songB?.title || 'Vào thẳng' }}</b><small>{{ m.songB?.artist }}</small></div><strong class="winner-label">{{ m.winner?.title || 'Chưa quyết định' }}</strong></div></div>
         </template>
       </section>
