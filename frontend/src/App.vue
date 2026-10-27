@@ -2114,24 +2114,34 @@ onUnmounted(() => {
             <div class="bracket-tree-scroll world-cup-tree" :class="{fitScreen: isTreeFitScreen}" :style="{ transform: 'scale(' + treeScale + ')', transformOrigin: 'top center' }">
               <!-- CÁNH TRÁI (LEFT WING) -->
               <div class="bracket-wing left-wing">
-                <div v-for="col in worldCupBracket.leftColumns" :key="'left-'+col.roundIndex" class="tree-round-column">
-                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed}">
+                <div v-for="col in worldCupBracket.leftColumns" :key="'left-'+col.roundIndex" class="tree-round-column"
+                  :class="{ 'bkt-round-done': col.completed, 'bkt-round-open': !col.closed && !col.completed, 'bkt-round-closed': col.closed && !col.completed }">
+                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed, 'bkt-header-done': col.completed, 'bkt-header-live': !col.closed && !col.completed}">
+                    <div class="bkt-round-status-dot" :class="{ 'bkt-dot-live': !col.closed && !col.completed, 'bkt-dot-done': col.completed, 'bkt-dot-closed': col.closed && !col.completed }"></div>
                     <h4>{{ col.name }}</h4>
                     <small>{{ col.completed ? '🏆 Xong' : (col.closed ? '🔒 Đóng' : '🔓 Đang mở') }}</small>
-                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
+                    <button v-if="isAdmin" class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
                       {{ col.closed ? '🔓 Mở' : '🔒 Đóng' }}
                     </button>
                   </div>
-                  <div class="tree-round-matches">
-                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
+                  <div class="tree-round-matches bkt-connector-left">
+                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card"
+                      :class="{
+                        treeMatchLocked: match.closed,
+                        'bkt-match-live': !match.closed && !match.winner && match.songA && match.songB,
+                        'bkt-match-done': !!match.winner,
+                        'bkt-match-pending': !match.songA || !match.songB
+                      }">
                       <div class="tree-match-header">
-                        <span>#{{ match.position + 1 }}</span><button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
+                        <span class="bkt-match-num">#{{ match.position + 1 }}</span>
+                        <button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
                         <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Đặc cách</span>
                         <span v-if="match.winner" class="mini-status won">✓ Xong</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
-                        <span v-else class="mini-status live">Vote</span>
+                        <span v-else class="mini-status live"><span class="bkt-live-dot"></span>Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song"
+                        :class="{winner:match.winner?.id===song?.id, mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
@@ -2166,23 +2176,30 @@ onUnmounted(() => {
                 </div>
 
                 <div v-if="worldCupBracket.centerRound" class="center-final-card">
-                  <div class="tree-round-header gold-header">
+                  <div class="tree-round-header gold-header" :class="{'bkt-header-done': !!champion, 'bkt-header-live': !worldCupBracket.centerRound.closed && !champion}">
+                    <div class="bkt-round-status-dot" :class="{ 'bkt-dot-live': !worldCupBracket.centerRound.closed && !champion, 'bkt-dot-done': !!champion, 'bkt-dot-closed': worldCupBracket.centerRound.closed && !champion }"></div>
                     <h4>{{ worldCupBracket.centerRound.name }}</h4>
                     <small>{{ champion ? '♛ GRAND CHAMPION' : (worldCupBracket.centerRound.closed ? '🔒 Đã đóng' : '🔓 Đang tranh cúp') }}</small>
-                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(worldCupBracket.centerRound.index, worldCupBracket.centerRound.closed)">
-                      {{ worldCupBracket.centerRound.closed ? '🔓 Mở vote' : '🔒 Đóng vote' }}
+                    <button v-if="isAdmin" class="tree-toggle-round-btn" @click="toggleRoundVoting(worldCupBracket.centerRound.index, worldCupBracket.centerRound.closed)">
+                      {{ worldCupBracket.centerRound.closed ? '🔓 Mở' : '🔒 Đóng' }}
                     </button>
                   </div>
 
                   <div class="center-final-matches">
-                    <div v-for="match in worldCupBracket.centerRound.matches" :key="match.id" class="tree-match-card final-glow-card" :class="{treeMatchLocked:match.closed}">
+                    <div v-for="match in worldCupBracket.centerRound.matches" :key="match.id" class="tree-match-card final-glow-card"
+                      :class="{
+                        treeMatchLocked: match.closed,
+                        'bkt-match-live': !match.closed && !match.winner && match.songA && match.songB,
+                        'bkt-match-done': !!match.winner
+                      }">
                       <div class="tree-match-header final-header-bar">
                         <span>TRẬN TRANH CÚP VÀNG</span><button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
-                        <span v-if="match.winner" class="mini-status won">{{ champion ? '♛ GRAND CHAMPION: ' : 'WINNER: ' }}{{ match.winner.title }}</span>
+                        <span v-if="match.winner" class="mini-status won">{{ champion ? '♛ CHAMPION: ' : 'WINNER: ' }}{{ match.winner.title }}</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng vote</span>
-                        <span v-else class="mini-status live">● ĐANG BÌNH CHỌN</span>
+                        <span v-else class="mini-status live"><span class="bkt-live-dot"></span>Đang vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song final-song-row"
+                        :class="{winner:match.winner?.id===song?.id, mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">
@@ -2211,24 +2228,34 @@ onUnmounted(() => {
 
               <!-- CÁNH PHẢI (RIGHT WING) -->
               <div class="bracket-wing right-wing">
-                <div v-for="col in worldCupBracket.rightColumns" :key="'right-'+col.roundIndex" class="tree-round-column">
-                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed}">
+                <div v-for="col in worldCupBracket.rightColumns" :key="'right-'+col.roundIndex" class="tree-round-column"
+                  :class="{ 'bkt-round-done': col.completed, 'bkt-round-open': !col.closed && !col.completed, 'bkt-round-closed': col.closed && !col.completed }">
+                  <div class="tree-round-header" :class="{treeHeaderClosed:col.closed, 'bkt-header-done': col.completed, 'bkt-header-live': !col.closed && !col.completed}">
+                    <div class="bkt-round-status-dot" :class="{ 'bkt-dot-live': !col.closed && !col.completed, 'bkt-dot-done': col.completed, 'bkt-dot-closed': col.closed && !col.completed }"></div>
                     <h4>{{ col.name }}</h4>
                     <small>{{ col.completed ? '🏆 Xong' : (col.closed ? '🔒 Đóng' : '🔓 Đang mở') }}</small>
-                    <button class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
+                    <button v-if="isAdmin" class="tree-toggle-round-btn" @click="toggleRoundVoting(col.roundIndex, col.closed)">
                       {{ col.closed ? '🔓 Mở' : '🔒 Đóng' }}
                     </button>
                   </div>
-                  <div class="tree-round-matches">
-                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card" :class="{treeMatchLocked:match.closed}">
+                  <div class="tree-round-matches bkt-connector-right">
+                    <div v-for="match in col.matches" :key="match.id" class="tree-match-card"
+                      :class="{
+                        treeMatchLocked: match.closed,
+                        'bkt-match-live': !match.closed && !match.winner && match.songA && match.songB,
+                        'bkt-match-done': !!match.winner,
+                        'bkt-match-pending': !match.songA || !match.songB
+                      }">
                       <div class="tree-match-header">
-                        <span>#{{ match.position + 1 }}</span><button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
+                        <span class="bkt-match-num">#{{ match.position + 1 }}</span>
+                        <button class="match-detail-btn" @click="openVoteDetails(match)">Chi tiết</button>
                         <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Đặc cách</span>
                         <span v-if="match.winner" class="mini-status won">✓ Xong</span>
                         <span v-else-if="match.closed" class="mini-status closed">🔒 Đóng</span>
-                        <span v-else class="mini-status live">Vote</span>
+                        <span v-else class="mini-status live"><span class="bkt-live-dot"></span>Vote</span>
                       </div>
-                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
+                      <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="tree-match-song"
+                        :class="{winner:match.winner?.id===song?.id, mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
                         <template v-if="song">
                           <div class="tree-song-thumb" :title="song.title">
                             <img :src="getSongArtwork(song)" :alt="song.title" class="tree-thumb-img" @error="handleImgError($event)">

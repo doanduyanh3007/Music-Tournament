@@ -4295,3 +4295,473 @@ html[data-theme="dark"] .arena-card--winner .arena-votebar-fill { background: li
   .arena-song-artist { font-size: 10px; }
   .arena-artwork { aspect-ratio: 4/3; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROFESSIONAL ESPORTS BRACKET TREE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes bkt-card-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes bkt-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); opacity: 1; }
+  50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); opacity: 0.6; }
+}
+
+@keyframes bkt-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+@keyframes bkt-trophy-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes bkt-gold-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 16px 2px rgba(251, 191, 36, 0.25), 0 0 35px 6px rgba(251, 191, 36, 0.08), inset 0 0 16px rgba(251, 191, 36, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 26px 6px rgba(251, 191, 36, 0.4), 0 0 50px 12px rgba(251, 191, 36, 0.15), inset 0 0 24px rgba(251, 191, 36, 0.08);
+  }
+}
+
+@keyframes bkt-ribbon-shine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ─── Stadium Outer Header ───────────────────────────────────────── */
+.stadium-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%) !important;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(99, 102, 241, 0.2) inset;
+  padding: 14px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stadium-header::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.6) 30%, rgba(167, 139, 250, 0.9) 50%, rgba(99, 102, 241, 0.6) 70%, transparent 100%);
+}
+
+.stadium-badge {
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: #a5b4fc !important;
+  border: 1px solid rgba(99, 102, 241, 0.35) !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.stadium-title {
+  color: #f1f5f9 !important;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 16px rgba(167, 139, 250, 0.3);
+}
+
+.stadium-glow {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px; height: 70px;
+  background: radial-gradient(ellipse, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ─── Bracket Tree Outer & Scroll Canvas ─────────────────────────── */
+.bracket-tree-wrapper.world-cup-stadium {
+  background: #080d1a !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.15);
+}
+
+.bracket-tree-scroll.world-cup-tree {
+  background: radial-gradient(ellipse at 50% 0%, #1e1b4b 0%, #0f172a 55%, #080d1a 100%) !important;
+  padding: 24px 14px !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  gap: clamp(8px, 1.2vw, 18px);
+}
+
+/* Custom scrollbar */
+.bracket-tree-scroll.world-cup-tree::-webkit-scrollbar {
+  height: 7px;
+}
+.bracket-tree-scroll.world-cup-tree::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+}
+.bracket-tree-scroll.world-cup-tree::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 4px;
+}
+.bracket-tree-scroll.world-cup-tree::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.7);
+}
+
+/* ─── Wings & Columns ────────────────────────────────────────────── */
+.bracket-wing {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: clamp(8px, 1vw, 16px);
+}
+
+.tree-round-column {
+  min-width: 175px;
+  max-width: 215px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Status indicator dot in round header */
+.bkt-round-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #64748b;
+  display: inline-block;
+}
+.bkt-dot-live {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: bkt-dot-pulse 1.4s infinite;
+}
+.bkt-dot-done {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+.bkt-dot-closed {
+  background: #f43f5e;
+}
+
+/* Round Header */
+.tree-round-header {
+  background: linear-gradient(180deg, rgba(30, 35, 60, 0.95) 0%, rgba(20, 24, 48, 0.95) 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  border-top: 3px solid rgba(99, 102, 241, 0.5) !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  margin-bottom: 14px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tree-round-header h4 {
+  color: #c7d2fe !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-round-header small {
+  font-size: 9px !important;
+  color: #94a3b8 !important;
+  white-space: nowrap;
+}
+
+.bkt-header-live {
+  border-top-color: #6366f1 !important;
+  background: linear-gradient(180deg, rgba(49, 46, 129, 0.7) 0%, rgba(24, 28, 54, 0.95) 100%) !important;
+}
+.bkt-header-live h4 {
+  color: #e0e7ff !important;
+}
+
+.bkt-header-done {
+  border-top-color: #22c55e !important;
+  background: linear-gradient(180deg, rgba(6, 78, 59, 0.5) 0%, rgba(20, 24, 48, 0.95) 100%) !important;
+}
+.bkt-header-done h4 {
+  color: #86efac !important;
+}
+
+.tree-round-header.treeHeaderClosed {
+  border-top-color: #f43f5e !important;
+  background: linear-gradient(180deg, rgba(76, 20, 36, 0.6) 0%, rgba(20, 24, 48, 0.95) 100%) !important;
+}
+.tree-round-header.treeHeaderClosed h4 {
+  color: #fda4af !important;
+}
+
+/* ─── Connector Lines ────────────────────────────────────────────── */
+.bkt-connector-left {
+  position: relative;
+}
+.bkt-connector-left::after {
+  content: "";
+  position: absolute;
+  top: 15px; bottom: 15px; right: -8px;
+  width: 2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.3) 15%, rgba(99, 102, 241, 0.3) 85%, transparent 100%);
+  pointer-events: none;
+}
+
+.bkt-connector-right {
+  position: relative;
+}
+.bkt-connector-right::before {
+  content: "";
+  position: absolute;
+  top: 15px; bottom: 15px; left: -8px;
+  width: 2px;
+  background: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.3) 15%, rgba(99, 102, 241, 0.3) 85%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ─── Match Cards ────────────────────────────────────────────────── */
+.tree-match-card {
+  background: rgba(26, 32, 54, 0.9) !important;
+  border: 1px solid rgba(99, 102, 241, 0.18) !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35) !important;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: bkt-card-in 0.25s ease both;
+  position: relative;
+}
+.tree-match-card:hover {
+  border-color: rgba(99, 102, 241, 0.45) !important;
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.18) !important;
+  transform: translateY(-1px);
+}
+
+.tree-match-card.bkt-match-live {
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.15) !important;
+}
+
+.tree-match-card.treeMatchLocked {
+  background: rgba(18, 22, 38, 0.8) !important;
+  border-color: rgba(71, 85, 105, 0.2) !important;
+  box-shadow: none !important;
+  opacity: 0.75;
+}
+
+/* Match Header Row */
+.tree-match-header {
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12) !important;
+  padding-bottom: 4px !important;
+  margin-bottom: 5px !important;
+  color: #94a3b8 !important;
+}
+.bkt-match-num {
+  font-weight: 800;
+  color: #a5b4fc;
+}
+
+/* Status Badges */
+.bkt-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #38bdf8;
+  display: inline-block;
+  margin-right: 4px;
+  animation: bkt-dot-pulse 1.2s infinite;
+}
+
+.mini-status.won {
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: #4ade80 !important;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.mini-status.closed {
+  background: rgba(244, 63, 94, 0.15) !important;
+  color: #fda4af !important;
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+.mini-status.live {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #7dd3fc !important;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+/* ─── Match Songs inside Tree ────────────────────────────────────── */
+.tree-match-song {
+  background: rgba(15, 20, 36, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-radius: 6px !important;
+  padding: 5px 6px !important;
+  margin-top: 4px;
+  transition: all 0.2s ease;
+}
+
+/* Winning song highlight */
+.tree-match-song.winner {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(52, 211, 153, 0.35) !important;
+  box-shadow: inset 3px 0 0 #10b981, 0 0 10px rgba(16, 185, 129, 0.1) !important;
+}
+.tree-match-song.winner .tree-song-text b {
+  color: #6ee7b7 !important;
+}
+
+/* Losing song muted but still legible */
+.tree-match-song.mutedSong {
+  opacity: 0.45 !important;
+  filter: grayscale(0.5);
+}
+.tree-match-song.mutedSong .tree-song-text b {
+  color: #94a3b8 !important;
+}
+
+/* Grand Champion */
+.tree-match-song.grand-champion-song {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(251, 191, 36, 0.45) !important;
+  box-shadow: inset 3px 0 0 #f59e0b, 0 0 12px rgba(245, 158, 11, 0.2) !important;
+}
+.tree-match-song.grand-champion-song .tree-song-text b {
+  color: #fde68a !important;
+}
+
+.tree-song-thumb {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 4px !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+}
+
+.tree-song-text b {
+  color: #e2e8f0 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+.tree-song-text small {
+  color: #94a3b8 !important;
+  font-size: 9px !important;
+}
+
+.tree-vote-count {
+  color: #a5b4fc !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+.tree-vote-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(129, 140, 248, 0.4) !important;
+  border-radius: 4px !important;
+  padding: 3px 8px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 4px rgba(79, 70, 229, 0.3) !important;
+  transition: all 0.15s ease;
+}
+.tree-vote-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5) !important;
+  transform: translateY(-1px);
+}
+.tree-vote-btn.selected {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border-color: #34d399 !important;
+  color: #ffffff !important;
+}
+
+.tree-play-btn {
+  border-radius: 4px !important;
+  background: rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  color: #a5b4fc !important;
+}
+.tree-play-btn:hover {
+  background: rgba(99, 102, 241, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.tree-tbd {
+  background: rgba(15, 23, 42, 0.4) !important;
+  border: 1px dashed rgba(99, 102, 241, 0.2) !important;
+  border-radius: 5px !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+}
+
+/* ─── Center Podium & Trophy ─────────────────────────────────────── */
+.bracket-center-podium {
+  position: relative;
+  padding: 0 10px;
+}
+.gold-trophy-icon {
+  animation: bkt-trophy-float 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.5));
+}
+.trophy-ribbon {
+  background: linear-gradient(90deg, #92400e 0%, #d97706 25%, #fbbf24 50%, #d97706 75%, #92400e 100%) !important;
+  background-size: 200% auto !important;
+  color: #1e1b4b !important;
+  animation: bkt-ribbon-shine 3s linear infinite !important;
+  font-weight: 800 !important;
+  border: 1px solid #fde047 !important;
+}
+
+.gold-header {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.6) 0%, rgba(180, 83, 9, 0.4) 50%, rgba(120, 53, 15, 0.6) 100%) !important;
+  border: 1px solid rgba(251, 191, 36, 0.35) !important;
+}
+.gold-header h4 {
+  color: #fbbf24 !important;
+  text-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+.final-glow-card {
+  background: rgba(24, 20, 10, 0.95) !important;
+  border: 1.5px solid rgba(251, 191, 36, 0.45) !important;
+  animation: bkt-gold-glow-pulse 3s ease-in-out infinite !important;
+}
+
+.final-header-bar {
+  background: rgba(180, 83, 9, 0.3) !important;
+  color: #fde68a !important;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2) !important;
+}
+
+/* ─── Mobile Responsiveness ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .bracket-tree-wrapper.world-cup-stadium {
+    border-radius: 8px !important;
+  }
+  .bracket-tree-scroll.world-cup-tree {
+    min-width: 100%;
+    overflow-x: auto !important;
+    padding: 16px 8px !important;
+  }
+  .bracket-wing {
+    min-width: max-content;
+  }
+  .tree-round-column {
+    min-width: 155px;
+  }
+  .bracket-center-podium {
+    min-width: 150px;
+  }
+  .gold-trophy-icon {
+    font-size: 32px;
+  }
+}
