@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +29,11 @@ public class TournamentService {
     private final AdminAccountRepository adminAccounts;
     private final EntityManager em;
     private final String adminToken;
+
+    // -------------------------------------------------------
+    // In-memory lobby: tournamentId -> (voterKey -> {displayName, joinedAt})
+    // -------------------------------------------------------
+    private final ConcurrentHashMap<Long, Map<String, Map<String, Object>>> lobbyStore = new ConcurrentHashMap<>();
 
     public TournamentService(TournamentRepository tournaments, SongRepository songs,
                              MatchRepository matches, VoteRepository votes, WildcardRepository wildcards,
@@ -1068,6 +1074,75 @@ public class TournamentService {
         String artB = (b.getArtist() == null) ? "" : b.getArtist().trim().toLowerCase();
         if (artA.isEmpty() || artB.isEmpty() || artA.equals("—") || artA.equals("-") || artA.equals("unknown")) return false;
         return artA.equals(artB);
+    }
+
+    // -------------------------------------------------------
+    // Task 1: Delete tournament
+    // -------------------------------------------------------
+    @Transactional
+    public void deleteTournament(Long id) {
+        if (!tournaments.existsById(id))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu.");
+        tournaments.deleteById(id);
+        lobbyStore.remove(id);
+    }
+
+    // -------------------------------------------------------
+    // Task 2: Lobby system (in-memory, ephemeral)
+    // -------------------------------------------------------
+
+    /**
+     * Join lobby for a tournament.
+     * voterKey is the unique identifier; displayName is trimmed and validated (1–50 chars).
+     */
+    public Map<String, Object> joinLobby(Long tournamentId, String voterKey, String displayName) {
+        if (!tournaments.existsById(tournamentId))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu.");
+        if (voterKey == null || voterKey.isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "voterKey không được để trống.");
+        if (displayName == null || displayName.isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "displayName không được để trống.");
+
+        String trimmedName = displayName.trim();
+        if (trimmedName.length() > 50) trimmedName = trimmedName.substring(0, 50);
+        if (trimmedName.isEmpty())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "displayName phải có ít nhất 1 ký tự.");
+
+        Map<String, Map<String, Object>> lobby = lobbyStore.computeIfAbsent(tournamentId, k -> new ConcurrentHashMap<>());
+        Map<String, Object> participant = new LinkedHashMap<>();
+        participant.put("voterKey", voterKey);
+        participant.put("displayName", trimmedName);
+        participant.put("joinedAt", Instant.now().toString());
+        lobby.put(voterKey, participant);
+
+        return Map.of("ok", true, "participants", getSortedParticipants(tournamentId));
+    }
+
+    /**
+     * Get current lobby participants sorted by joinedAt ascending.
+     */
+    public List<Map<String, Object>> getLobby(Long tournamentId) {
+        if (!tournaments.existsById(tournamentId))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu.");
+        return getSortedParticipants(tournamentId);
+    }
+
+    /**
+     * Clear/close the lobby for a tournament (admin action).
+     */
+    public Map<String, Object> clearLobby(Long tournamentId) {
+        if (!tournaments.existsById(tournamentId))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu.");
+        lobbyStore.remove(tournamentId);
+        return Map.of("ok", true, "participants", List.of());
+    }
+
+    private List<Map<String, Object>> getSortedParticipants(Long tournamentId) {
+        Map<String, Map<String, Object>> lobby = lobbyStore.get(tournamentId);
+        if (lobby == null) return List.of();
+        return lobby.values().stream()
+                .sorted(Comparator.comparing(p -> (String) p.get("joinedAt")))
+                .toList();
     }
 }
 

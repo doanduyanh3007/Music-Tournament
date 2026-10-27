@@ -68,4 +68,33 @@ public class TournamentController {
     public List<Map<String, Object>> leaderboard(@PathVariable Long id) {
         return service.leaderboard(id);
     }
+
+    // -------------------------------------------------------
+    // Task 1: Delete tournament
+    // -------------------------------------------------------
+    @DeleteMapping("/tournaments/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTournament(@PathVariable Long id) {
+        service.deleteTournament(id);
+    }
+
+    // -------------------------------------------------------
+    // Task 2: Lobby endpoints
+    // -------------------------------------------------------
+    @PostMapping("/tournaments/{id}/lobby/join")
+    public Map<String, Object> joinLobby(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String voterKey = body != null ? body.get("voterKey") : null;
+        String displayName = body != null ? body.get("displayName") : null;
+        return service.joinLobby(id, voterKey, displayName);
+    }
+
+    @GetMapping("/tournaments/{id}/lobby")
+    public List<Map<String, Object>> getLobby(@PathVariable Long id) {
+        return service.getLobby(id);
+    }
+
+    @DeleteMapping("/tournaments/{id}/lobby")
+    public Map<String, Object> clearLobby(@PathVariable Long id) {
+        return service.clearLobby(id);
+    }
 }

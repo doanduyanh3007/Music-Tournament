@@ -239,6 +239,90 @@ function requireAdmin(actionName, callback) {
   }
 }
 
+// ─── Delete Tournament ───
+async function deleteTournament(t, event) {
+  event.stopPropagation()
+  if (!isAdmin.value) { requireAdmin('Xóa giải đấu', () => deleteTournament(t, event)); return }
+  if (!confirm(`Xóa giải đấu "${t.name}"?\nToàn bộ bài hát, trận đấu và phiếu bình chọn sẽ bị xóa vĩnh viễn.`)) return
+  try {
+    await api(`/tournaments/${t.id}`, { method: 'DELETE' })
+    if (tournament.value?.id === t.id) { tournament.value = null; page.value = 'home' }
+    await loadTournaments()
+    flash(`Đã xóa giải đấu "${t.name}" 🗑`)
+  } catch (e) { error.value = e.message }
+}
+
+// ─── Lobby / Waiting Room ───
+const showLobbyModal = ref(false)
+const lobbyTournamentId = ref(null)
+const lobbyTournamentName = ref('')
+const lobbyParticipants = ref([])
+const lobbyJoined = ref(false)
+const lobbyJoinName = ref(displayName.value || '')
+const lobbyJoinError = ref('')
+let lobbyPollTimer = null
+
+async function openLobby(tournamentId, tournamentName) {
+  lobbyTournamentId.value = tournamentId
+  lobbyTournamentName.value = tournamentName
+  lobbyJoined.value = false
+  lobbyJoinError.value = ''
+  lobbyJoinName.value = displayName.value || ''
+  lobbyParticipants.value = []
+  showLobbyModal.value = true
+  await refreshLobby()
+  startLobbyPoll()
+}
+
+function closeLobby() {
+  showLobbyModal.value = false
+  stopLobbyPoll()
+}
+
+function startLobbyPoll() {
+  stopLobbyPoll()
+  lobbyPollTimer = setInterval(refreshLobby, 3000)
+}
+
+function stopLobbyPoll() {
+  if (lobbyPollTimer) { clearInterval(lobbyPollTimer); lobbyPollTimer = null }
+}
+
+async function refreshLobby() {
+  if (!lobbyTournamentId.value) return
+  try {
+    const data = await api(`/tournaments/${lobbyTournamentId.value}/lobby`)
+    lobbyParticipants.value = data
+  } catch (_) {}
+}
+
+async function joinLobby() {
+  const name = lobbyJoinName.value.trim()
+  if (!name || name.length > 50) { lobbyJoinError.value = 'Tên cần từ 1-50 ký tự.'; return }
+  lobbyJoinError.value = ''
+  try {
+    await api(`/tournaments/${lobbyTournamentId.value}/lobby/join`, {
+      method: 'POST',
+      body: JSON.stringify({ displayName: name, voterKey })
+    })
+    displayName.value = name
+    localStorage.setItem('musicTournamentDisplayName', name)
+    lobbyJoined.value = true
+    await refreshLobby()
+  } catch (e) { lobbyJoinError.value = e.message }
+}
+
+async function startTournamentFromLobby() {
+  if (!isAdmin.value) return
+  try {
+    await api(`/tournaments/${lobbyTournamentId.value}/lobby`, { method: 'DELETE' })
+  } catch (_) {}
+  closeLobby()
+  await openTournament(lobbyTournamentId.value)
+  flash('🎵 Giải đấu bắt đầu! Chào mừng tất cả người chơi!')
+}
+
+
 // 5. Guest Features: Favorites & Champion Prediction
 const favoriteSongIds = ref(JSON.parse(localStorage.getItem('musicTournamentFavorites') || '[]'))
 
@@ -1048,8 +1132,9 @@ async function createTournament() {
   try {
     const created = await api('/tournaments', { method: 'POST', body: JSON.stringify(payload) })
     await loadTournaments()
-    await openTournament(created.id)
     flash('Tạo giải thành công! Các nhánh đấu đã được phân bổ 🎵')
+    // Open lobby waiting room so participants can join before tournament starts
+    await openLobby(created.id, payload.name)
   } catch (e) { error.value = e.message }
   finally { loading.value = false }
 }
@@ -1445,6 +1530,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (liveTimer) clearInterval(liveTimer)
+  stopLobbyPoll()
   window.removeEventListener('hashchange', checkUrlHash)
   document.removeEventListener('keydown', trapVoteDialogFocus)
 })
@@ -1785,9 +1871,15 @@ onUnmounted(() => {
         <div class="panel tournament-list-panel">
           <div class="section-head"><div><span class="mini-icon">♫</span><h3>Giải đấu gần đây</h3></div><button class="text-btn" @click="loadTournaments">↻ Làm mới</button></div>
           <div v-if="!tournaments.length" class="empty-state"><div class="empty-note">♫</div><b>Chưa có giải đấu nào</b><p>Tạo giải đầu tiên của bạn ở khung bên trái nhé.</p></div>
-          <button v-for="t in tournaments" :key="t.id" class="tournament-row" @click="openTournament(t.id)">
-            <span class="album">♫</span><span class="tournament-info"><b>{{ t.name }}</b><small>{{ t.songCount }} bài · {{ t.completedMatches }} trận đã có kết quả</small></span><span class="row-status" :class="{closed:!t.active}">{{ t.active?'Đang mở':'Đã đóng' }}</span><span class="row-arrow">›</span>
-          </button>
+          <div v-for="t in tournaments" :key="t.id" class="tournament-row-wrap">
+            <button class="tournament-row" @click="openTournament(t.id)">
+              <span class="album">♫</span><span class="tournament-info"><b>{{ t.name }}</b><small>{{ t.songCount }} bài · {{ t.completedMatches }} trận đã có kết quả</small></span><span class="row-status" :class="{closed:!t.active}">{{ t.active?'Đang mở':'Đã đóng' }}</span><span class="row-arrow">›</span>
+            </button>
+            <div v-if="isAdmin" class="tournament-row-actions">
+              <button class="btn mini-btn lobby-btn" @click.stop="openLobby(t.id, t.name)" title="Mở phòng chờ">🚪 Lobby</button>
+              <button class="btn mini-btn danger-btn" @click.stop="deleteTournament(t, $event)" title="Xóa giải đấu">🗑 Xóa</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2647,4 +2739,69 @@ onUnmounted(() => {
   </div>
 
   <footer class="footer">♫ Made for music fans <span>·</span> Music Tournament Pro 2026</footer>
+
+  <!-- ─── LOBBY MODAL ─── -->
+  <div v-if="showLobbyModal" class="modal-overlay" @click.self="closeLobby">
+    <div class="player-modal lobby-modal">
+      <div class="player-modal-header">
+        <div class="login-modal-title">
+          <span class="admin-crown-icon">🚪</span>
+          <div>
+            <h4>Phòng chờ — {{ lobbyTournamentName }}</h4>
+            <p class="muted small">Mọi người vào đây đặt tên trước khi giải đấu bắt đầu.</p>
+          </div>
+        </div>
+        <button class="modal-close-btn" @click="closeLobby">✕</button>
+      </div>
+
+      <div class="lobby-body">
+        <!-- Join form for guests / also admin can join -->
+        <div v-if="!lobbyJoined" class="lobby-join-form">
+          <label>Tên của bạn:</label>
+          <div class="lobby-join-row">
+            <input v-model="lobbyJoinName" type="text" placeholder="Nhập tên hiển thị..." class="admin-password-box"
+              maxlength="50" @keyup.enter="joinLobby">
+            <button class="btn primary" @click="joinLobby">✔ Vào phòng</button>
+          </div>
+          <p v-if="lobbyJoinError" class="form-error">{{ lobbyJoinError }}</p>
+        </div>
+        <div v-else class="lobby-joined-badge">
+          ✅ Bạn đã vào phòng với tên <b>{{ lobbyJoinName }}</b>
+        </div>
+
+        <!-- Participant list -->
+        <div class="lobby-participants-section">
+          <div class="lobby-participants-header">
+            <span class="lobby-count-badge">{{ lobbyParticipants.length }} người trong phòng chờ</span>
+            <span v-if="!isAdmin" class="muted small">Đang chờ Admin bắt đầu giải đấu...</span>
+          </div>
+          <div class="lobby-participants-grid">
+            <div v-if="!lobbyParticipants.length" class="lobby-empty">
+              <span>👥</span>
+              <p>Chưa có ai vào phòng chờ. Hãy chia sẻ link giải đấu!</p>
+            </div>
+            <div v-for="(p, i) in lobbyParticipants" :key="p.voterKey" class="lobby-participant-card"
+              :class="{lobbyMeCard: p.voterKey === voterKey}">
+              <span class="lobby-participant-num">{{ i + 1 }}</span>
+              <span class="lobby-participant-avatar">{{ (p.displayName || '?')[0].toUpperCase() }}</span>
+              <span class="lobby-participant-name">{{ p.displayName }}<span v-if="p.voterKey === voterKey" class="lobby-you-tag">(bạn)</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin controls -->
+        <div v-if="isAdmin" class="lobby-admin-controls">
+          <p class="muted small">Khi đã sẵn sàng, bấm Bắt đầu để mở giải cho mọi người bình chọn.</p>
+          <button class="btn primary lobby-start-btn" @click="startTournamentFromLobby">
+            🎵 Bắt đầu giải đấu ({{ lobbyParticipants.length }} người)
+          </button>
+          <button class="btn cancel-btn" @click="closeLobby">Đóng phòng chờ</button>
+        </div>
+        <div v-else class="lobby-wait-hint">
+          <div class="lobby-pulse"></div>
+          <span>Đang chờ Admin khởi động giải đấu...</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
