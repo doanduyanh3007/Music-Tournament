@@ -4,6 +4,7 @@ import { parseSongs, uniqueSongs, formatSong } from './songInput.js'
 import ChampionStage from './ChampionStage.vue'
 import SongBadge from './SongBadge.vue'
 import VoteSelection from './VoteSelection.vue'
+import ArenaMatchCard from './ArenaMatchCard.vue'
 import { selectedVoteSong, isVotingOpen, canChangeVote } from './voteState.js'
 import { getChampionship, createCoronationTracker } from './championship.js'
 
@@ -2046,40 +2047,24 @@ onUnmounted(() => {
               <h3>Chung kết</h3>
               <p>Hai bài hát. Một ngôi vô địch. {{ champion ? 'Quán quân đã được gọi tên.' : 'Lá phiếu của bạn làm nên khoảnh khắc này.' }}</p>
             </div>
-            <div v-if="currentRound" class="match-grid" :class="{'finale-match-grid':isFinalRound}">
-              <article v-for="match in paginatedMatches" :key="match.id" class="match-card" :class="{matchLocked:match.closed, 'finale-match-card':isFinalRound}">
-                <div class="match-top">
-                  <span>{{ isFinalRound ? '🏆 TRẬN TRANH NGÔI VÔ ĐỊCH' : 'TRẬN ' + (match.position+1) }}</span><button class="match-detail-btn" @click="openVoteDetails(match)">Xem chi tiết</button>
-                  <span v-if="match.isWildcard" class="wildcard-tag" title="Trận đấu có bài đặc cách Wildcard">⭐ Vé đặc cách</span>
-                  <span v-if="match.winner" class="match-state won">✓ Đã có kết quả</span>
-                  <span v-else-if="match.closed" class="match-state closedState">🔒 Đã đóng vote</span>
-                  <span v-else class="match-state live">● Đang vote</span>
-                </div>
-                <div v-for="(song,side) in [match.songA,match.songB]" :key="side" class="match-song" :class="{winner:match.winner?.id===song?.id,mutedSong:match.winner&&match.winner.id!==song?.id, 'grand-champion-song':isChampion(song), 'guest-selected-song':match.myVote && match.myVote.songId===song?.id}">
-                  <template v-if="song">
-                    <div class="song-cover-box" :title="song.title + ' — ' + (song.artist || '')">
-                      <img :src="getSongArtwork(song)" :alt="song.title" class="song-cover-img" @error="handleImgError($event)">
-                    </div>
-                    <div class="song-meta">
-                      <b>{{ song.title }} <SongBadge :song="song" :match="match" /> <span v-if="isWildcardSong(song.id)" class="song-wc-badge" title="Bài hát đạt vé đặc cách Wildcard">⭐</span></b>
-                      <small>{{ song.artist || 'Chưa nhập nghệ sĩ' }}</small>
-                      <div class="vote-bar"><i :style="{width:((match['votes'+(side===0?'A':'B')]+1)/(match.votesA+match.votesB+2)*100)+'%'}"></i></div>
-                    </div>
-                    <div class="vote-side">
-                      <small>{{ match['votes'+(side===0?'A':'B')] }} vote</small>
-                      <button v-if="song.link" class="btn song-link-btn" :class="{spotifyBtn: isSpotifyLink(song.link)}" :title="isSpotifyLink(song.link) ? 'Nghe thử Spotify' : 'Nghe thử YouTube'" @click="playSong(song)">
-                        {{ isSpotifyLink(song.link) ? '🟢' : '▶' }}
-                      </button>
-                      <button class="btn vote-btn" :class="{selected:match.winner?.id===song.id}" :disabled="!tournament.active||match.closed||match.winner||match.hasVoted||!match.songB" @click="vote(match,song)">
-                        {{ match.winner?.id===song.id ? (isChampion(song) ? '♛ CHAMPION' : '✓ WINNER') : (match.closed ? 'Đã đóng' : match.myVote?.songId===song.id ? '✓ Đã chọn' : 'Vote') }}
-                      </button>
-                    </div>
-                  </template>
-                  <div v-else class="tbd">Đang chờ kết quả vòng trước…</div>
-                </div>
-                <VoteSelection v-if="match.hasVoted" :match="match" :can-change="canChangeVote(tournament,match)" @change="changeVote(match)" />
-                <div v-else-if="match.bye" class="match-foot">Tự động vào vòng tiếp theo</div>
-              </article>
+            <div v-if="currentRound" class="arena-match-grid" :class="{'finale-match-grid':isFinalRound}">
+              <ArenaMatchCard
+                v-for="match in paginatedMatches"
+                :key="match.id"
+                :match="match"
+                :is-final-round="isFinalRound"
+                :tournament="tournament"
+                :is-champion="isChampion"
+                :is-wildcard-song="isWildcardSong"
+                :is-voting-open="isVotingOpen"
+                :can-change-vote="canChangeVote"
+                :get-song-artwork="getSongArtwork"
+                :is-spotify-link="isSpotifyLink"
+                @vote="vote"
+                @change-vote="changeVote"
+                @play-song="playSong"
+                @open-details="openVoteDetails"
+              />
             </div>
 
             <!-- Bottom Pagination -->

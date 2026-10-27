@@ -3808,3 +3808,490 @@ html[data-theme="dark"] .lobby-joined-badge { background: rgba(110,231,183,.08);
 html[data-theme="dark"] .tournament-row-actions { background: var(--surface); }
 html[data-theme="dark"] .lobby-btn { background: rgba(165,180,252,.1); color: var(--blue); border-color: rgba(165,180,252,.3); }
 html[data-theme="dark"] .danger-btn { background: rgba(253,164,175,.08); color: var(--red); border-color: rgba(253,164,175,.3); }
+
+
+/* ═══════════════════════════════════════════════════
+   VERSUS ARENA — Anime-game match card
+   ═══════════════════════════════════════════════════ */
+
+/* ── Grid container ──────────────────────────────── */
+.arena-match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr));
+  gap: 20px;
+  padding: 4px 0 24px;
+}
+.arena-match-grid.finale-match-grid {
+  grid-template-columns: minmax(0, 680px);
+  justify-content: center;
+}
+
+/* ── Article wrapper ─────────────────────────────── */
+.arena-match {
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,.06);
+  animation: arena-arrive .35s cubic-bezier(.22,1,.36,1) both;
+  transition: box-shadow .2s;
+}
+.arena-match:hover {
+  box-shadow: 0 8px 30px rgba(99,102,241,.12);
+}
+@keyframes arena-arrive {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+.arena-match--finale {
+  border-color: #c4a451;
+  box-shadow: 0 0 0 3px #c4a45115, 0 12px 42px #6558b51c;
+  animation: arena-arrive .55s cubic-bezier(.22,1,.36,1) both, finale-glow 4s ease-in-out .55s infinite;
+}
+.arena-match--locked {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+.arena-match--just-voted {
+  animation: arena-voted-pulse .5s ease;
+}
+@keyframes arena-voted-pulse {
+  0%,100% { box-shadow: 0 4px 18px rgba(0,0,0,.06); }
+  40%      { box-shadow: 0 0 0 4px #6ee7b755, 0 8px 32px rgba(5,150,105,.2); }
+}
+
+/* ── Header ──────────────────────────────────────── */
+.arena-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.arena-match-label { color: var(--ink); }
+.arena-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.arena-tag {
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+.arena-tag--wc { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.arena-status {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.arena-status--won    { background: #ecfdf5; color: #059669; }
+.arena-status--closed { background: #fee2e2; color: #b91c1c; }
+.arena-status--live   { background: #ecfdf5; color: #059669; display: flex; align-items: center; gap: 4px; }
+.arena-live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #059669;
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .4; transform: scale(.7); }
+}
+.arena-detail-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--pale);
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.arena-detail-btn:hover { background: #eef2ff; }
+
+/* ── Two-column field ────────────────────────────── */
+.arena-field {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  min-height: 0;
+}
+
+/* ── Song card ───────────────────────────────────── */
+.arena-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  cursor: pointer;
+  transition: background .2s, box-shadow .2s, filter .25s, opacity .25s;
+  overflow: hidden;
+}
+.arena-card:hover { background: var(--surface-muted); }
+
+/* Selected — my vote, no result yet */
+.arena-card--mine {
+  background: linear-gradient(160deg, rgba(99,102,241,.06), rgba(99,102,241,.02));
+  box-shadow: inset 3px 0 0 #6366f1;
+}
+.arena-card--mine:first-child { box-shadow: inset 3px 0 0 #6366f1; }
+.arena-card:last-of-type.arena-card--mine { box-shadow: inset -3px 0 0 #6366f1; }
+
+/* Unchosen — other card, before result */
+.arena-card--unchosen {
+  opacity: .68;
+  filter: saturate(.55);
+}
+
+/* Winner */
+.arena-card--winner {
+  background: linear-gradient(160deg, rgba(5,150,105,.07), rgba(5,150,105,.02));
+  box-shadow: inset 3px 0 0 #059669;
+}
+
+/* Loser */
+.arena-card--loser {
+  opacity: .52;
+  filter: saturate(.4) brightness(.95);
+}
+
+/* Champion */
+.arena-card--champion {
+  background: linear-gradient(160deg, rgba(196,164,81,.1), rgba(196,164,81,.02));
+}
+
+/* ── Cover art ───────────────────────────────────── */
+.arena-artwork {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: #1e1e36;
+  flex-shrink: 0;
+}
+.arena-art-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform .35s ease;
+}
+.arena-card:hover .arena-art-img { transform: scale(1.06); }
+.arena-art-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,.55) 100%);
+  pointer-events: none;
+}
+.arena-crown {
+  position: absolute;
+  top: 8px; right: 8px;
+  font-size: 22px;
+  color: #fde68a;
+  text-shadow: 0 2px 8px #0008;
+  animation: arena-crown-bob 2s ease-in-out infinite;
+}
+@keyframes arena-crown-bob {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+/* ── Info block ──────────────────────────────────── */
+.arena-info {
+  padding: 10px 12px 6px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.arena-song-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.arena-song-artist {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.arena-wc-star { font-size: 11px; }
+
+/* vote bar */
+.arena-votebar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.arena-votebar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  border-radius: 2px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.arena-card--winner .arena-votebar-fill { background: linear-gradient(90deg, #059669, #34d399); }
+.arena-vote-count {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Actions ─────────────────────────────────────── */
+.arena-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 12px;
+  flex-wrap: wrap;
+}
+.arena-play-btn {
+  padding: 5px 9px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.arena-play-btn:hover { background: var(--line); }
+.arena-play-btn--spotify { color: #1db954; }
+
+.arena-vote-btn {
+  flex: 1;
+  padding: 7px 10px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #c7d2fe;
+  border-radius: 7px;
+  letter-spacing: .3px;
+  cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s, transform .1s;
+}
+.arena-vote-btn:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(99,102,241,.35);
+  transform: translateY(-1px);
+}
+.arena-vote-btn:active:not(:disabled) { transform: translateY(0); }
+.arena-vote-btn--mine {
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
+  box-shadow: 0 3px 12px rgba(99,102,241,.35);
+}
+.arena-vote-btn--selected {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+  box-shadow: 0 3px 12px rgba(5,150,105,.3);
+  cursor: default;
+}
+.arena-vote-btn--disabled:not(.arena-vote-btn--selected):not(.arena-vote-btn--mine) {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* ── Glow ring (my vote animation) ──────────────── */
+.arena-glow-ring {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px #6366f155;
+  animation: arena-ring-pulse 2s ease-in-out infinite;
+}
+@keyframes arena-ring-pulse {
+  0%,100% { box-shadow: inset 0 0 0 2px #6366f144; }
+  50%      { box-shadow: inset 0 0 0 2px #818cf8aa; }
+}
+
+/* ── Winner flash overlay (brief) ────────────────── */
+.arena-winner-flash {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle, #6ee7b722, transparent 70%);
+  pointer-events: none;
+  animation: arena-winner-flash .7s ease forwards;
+}
+@keyframes arena-winner-flash {
+  from { opacity: 1; } to { opacity: 0; }
+}
+
+/* ── TBD slot ────────────────────────────────────── */
+.arena-tbd {
+  padding: 24px 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ── VS divider ──────────────────────────────────── */
+.arena-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+}
+.arena-vs::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--line);
+  transform: translateX(-50%);
+}
+.arena-vs-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.arena-vs-inner > span {
+  display: block;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: var(--ink);
+  background: var(--surface);
+  padding: 6px 4px;
+  line-height: 1;
+  font-family: 'Barlow Condensed', 'Barlow', sans-serif;
+}
+/* active sparks when live */
+.arena-vs--active .arena-vs-inner > span {
+  color: transparent;
+  background: linear-gradient(135deg, #6366f1, #a78bfa, #818cf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: arena-vs-shine 2.5s linear infinite;
+  background-size: 200% 200%;
+}
+@keyframes arena-vs-shine {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.arena-vs-sparks {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+}
+.arena-vs--active .arena-vs-sparks i {
+  position: absolute;
+  width: 2px; height: 8px;
+  background: #818cf8;
+  border-radius: 1px;
+  opacity: 0;
+  animation: arena-spark 1.8s ease-in-out infinite;
+}
+.arena-vs--active .arena-vs-sparks i:nth-child(1) { transform: rotate(0deg)   translateY(-22px); animation-delay: 0s; }
+.arena-vs--active .arena-vs-sparks i:nth-child(2) { transform: rotate(90deg)  translateY(-22px); animation-delay: .45s; }
+.arena-vs--active .arena-vs-sparks i:nth-child(3) { transform: rotate(180deg) translateY(-22px); animation-delay: .9s; }
+.arena-vs--active .arena-vs-sparks i:nth-child(4) { transform: rotate(270deg) translateY(-22px); animation-delay: 1.35s; }
+@keyframes arena-spark {
+  0%,80%,100% { opacity: 0; transform: rotate(var(--r,0deg)) translateY(-22px) scale(.5); }
+  20%,60%     { opacity: .9; transform: rotate(var(--r,0deg)) translateY(-28px) scale(1); }
+}
+
+/* ── Bye note / footer ───────────────────────────── */
+.arena-bye-note {
+  font-size: 11px;
+  color: #059669;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* ── Dark mode ───────────────────────────────────── */
+html[data-theme="dark"] .arena-match {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 4px 18px rgba(0,0,0,.25);
+}
+html[data-theme="dark"] .arena-match:hover {
+  box-shadow: 0 8px 30px rgba(165,180,252,.12);
+}
+html[data-theme="dark"] .arena-card--mine {
+  background: linear-gradient(160deg, rgba(165,180,252,.08), rgba(165,180,252,.02));
+}
+html[data-theme="dark"] .arena-card--winner {
+  background: linear-gradient(160deg, rgba(110,231,183,.08), rgba(110,231,183,.02));
+}
+html[data-theme="dark"] .arena-card--champion {
+  background: linear-gradient(160deg, rgba(251,211,141,.08), rgba(251,191,36,.02));
+}
+html[data-theme="dark"] .arena-artwork { background: #0d1525; }
+html[data-theme="dark"] .arena-vs { background: var(--surface); }
+html[data-theme="dark"] .arena-vs-inner > span { background: var(--surface); }
+html[data-theme="dark"] .arena-vs--active .arena-vs-inner > span {
+  background: linear-gradient(135deg, #a5b4fc, #c4b5fd, #818cf8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-size: 200% 200%;
+}
+html[data-theme="dark"] .arena-vote-btn {
+  background: #292d55;
+  color: var(--blue);
+  border-color: #4c5286;
+}
+html[data-theme="dark"] .arena-vote-btn:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #fff;
+}
+html[data-theme="dark"] .arena-vote-btn--mine {
+  background: #4f46e5;
+  color: #fff;
+}
+html[data-theme="dark"] .arena-vote-btn--selected {
+  background: #059669;
+  color: #fff;
+  border-color: #059669;
+}
+html[data-theme="dark"] .arena-match--locked {
+  background: var(--surface);
+  border-color: #725060;
+}
+html[data-theme="dark"] .arena-card:hover { background: var(--pale); }
+html[data-theme="dark"] .arena-detail-btn { background: var(--pale); border-color: var(--line); color: var(--blue); }
+html[data-theme="dark"] .arena-votebar-fill { background: linear-gradient(90deg, #818cf8, #a5b4fc); }
+html[data-theme="dark"] .arena-card--winner .arena-votebar-fill { background: linear-gradient(90deg, #059669, #6ee7b7); }
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 480px) {
+  .arena-field {
+    grid-template-columns: 1fr auto 1fr;
+  }
+  .arena-vs { width: 32px; }
+  .arena-vs-inner > span { font-size: 13px; }
+  .arena-song-title { font-size: 11px; }
+  .arena-song-artist { font-size: 10px; }
+  .arena-artwork { aspect-ratio: 4/3; }
+}
