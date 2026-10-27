@@ -219,15 +219,6 @@ async function loginAdmin(customEmail, customPass) {
   }
 }
 
-function quickLoginAdminAccount(email, password) {
-  adminEmailInput.value = email
-  adminPasswordInput.value = password
-  loginAdmin(email, password)
-}
-
-function quickLoginAdmin() {
-  quickLoginAdminAccount('duyanh@gmail.com', '123456')
-}
 
 function logoutAdmin() {
   userRole.value = 'GUEST'
@@ -2618,8 +2609,9 @@ onUnmounted(() => {
           <input 
             v-model="adminEmailInput" 
             type="text" 
-            placeholder="duyanh@gmail.com hoặc hoangkhanh@gmail.com" 
+            placeholder="Nhập email hoặc tài khoản..." 
             class="admin-password-box"
+            autocomplete="username"
             @keyup.enter="loginAdmin()"
           >
         </div>
@@ -2629,8 +2621,9 @@ onUnmounted(() => {
           <input 
             v-model="adminPasswordInput" 
             type="password" 
-            placeholder="Nhập mật khẩu (123456)" 
+            placeholder="Nhập mật khẩu..." 
             class="admin-password-box"
+            autocomplete="current-password"
             @keyup.enter="loginAdmin()"
           >
         </div>
@@ -2640,28 +2633,14 @@ onUnmounted(() => {
             ✓ Đăng nhập Quản trị
           </button>
 
-          <div class="quick-admin-accounts-list">
-            <span class="quick-admin-title">⚡ Đăng nhập nhanh 1 chạm:</span>
-            <div class="quick-admin-btns-row">
-              <button class="btn soft quick-login-btn-acc" @click="quickLoginAdminAccount('duyanh@gmail.com', '123456')">
-                👤 Duy Anh (duyanh@gmail.com - mk: 123456)
-              </button>
-              <button class="btn soft quick-login-btn-acc" @click="quickLoginAdminAccount('hoangkhanh@gmail.com', '123456')">
-                👤 Hoàng Khánh (hoangkhanh@gmail.com - mk: 123456)
-              </button>
-            </div>
-          </div>
-
           <button class="btn cancel-btn" @click="showLoginModal=false">
             Hủy bỏ
           </button>
         </div>
 
         <div class="login-role-tip">
-          <b>🔑 2 Tài khoản Quản trị viên (Admin):</b>
-          <p>• <b>Admin 1</b>: <code>duyanh@gmail.com</code> | Mật khẩu: <code>123456</code> (Đoàn Duy Anh)</p>
-          <p>• <b>Admin 2</b>: <code>hoangkhanh@gmail.com</code> | Mật khẩu: <code>123456</code> (Hoàng Khánh)</p>
-          <small class="muted" style="display:block;margin-top:6px;">Quản trị viên có toàn quyền: Tạo giải mới, nạp bài hát, xáo trộn & xếp nhánh, mở/đóng bình chọn từng vòng, chốt kết quả và đóng/mở toàn bộ giải đấu.</small>
+          <b>🔒 Quyền Quản trị viên (Admin):</b>
+          <small class="muted" style="display:block;margin-top:6px;">Quản trị viên có quyền: Tạo giải mới, nạp bài hát, xáo trộn & xếp nhánh, mở/đóng bình chọn từng vòng, chốt kết quả và quản lý giải đấu.</small>
         </div>
       </div>
     </div>
