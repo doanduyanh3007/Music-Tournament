@@ -927,8 +927,11 @@ async function executeSearch() {
   if (!q) return
   searchLoading.value = true
   try {
-    const res = await api(`/search?q=${encodeURIComponent(q)}&limit=16`)
-    searchResults.value = uniqueSongs((res.results || []).map(item => ({ ...item, link: item.spotifyUrl || item.youtubeUrl }))).unique
+    const res = await api(`/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(searchFilter.value)}&limit=20`)
+    searchResults.value = uniqueSongs((res.results || []).map(item => ({
+      ...item,
+      link: item.youtubeUrl || item.spotifyUrl
+    }))).unique
     if (!searchResults.value.length) {
       flash('Không tìm thấy kết quả. Thử từ khóa khác nhé!')
     }
@@ -938,6 +941,12 @@ async function executeSearch() {
     searchLoading.value = false
   }
 }
+
+watch(searchFilter, () => {
+  if (searchQuery.value.trim()) {
+    executeSearch()
+  }
+})
 
 function quickSearch(tag) {
   const clean = tag.replace(/^[^\w\s\u00C0-\u1EF9]+/, '').trim()
@@ -950,7 +959,8 @@ const filteredSearchResults = computed(() => {
 })
 
 function searchSong(item) {
-  return parseSongs(item.formattedText || formatSong({ ...item, link: item.youtubeUrl }))[0]
+  const chosenLink = item.youtubeUrl || item.link
+  return parseSongs(item.formattedText || formatSong({ ...item, link: chosenLink }))[0]
 }
 function isSongAdded(item) {
   const song = searchSong(item)
@@ -968,6 +978,22 @@ function addAllSearchResults() {
   const added = unique.length - parsedSongs.value.length
   songText.value = unique.map(formatSong).join('\n')
   flash('Đã thêm ' + added + ' bài mới; bỏ qua các bài trùng.')
+}
+
+function playSongFromSearch(item) {
+  if (!item) return
+  if (previewAudio) {
+    previewAudio.pause()
+    previewAudio = null
+    activePreviewUrl.value = ''
+  }
+  const chosenLink = item.youtubeUrl || item.link
+  playSong({
+    title: item.title,
+    artist: item.artist,
+    link: chosenLink,
+    artwork: item.artwork
+  })
 }
 
 function toggleAudioPreview(url) {
@@ -1599,11 +1625,14 @@ onUnmounted(() => {
 
                 <div class="search-cards-grid">
                   <div v-for="(item, idx) in filteredSearchResults" :key="idx" class="search-song-card">
-                    <div class="search-card-art">
+                    <div class="search-card-art" @click="item.previewUrl ? toggleAudioPreview(item.previewUrl) : playSongFromSearch(item)" style="cursor:pointer;" title="Bấm vào bìa để nghe thử">
                       <img v-if="item.artwork" :src="item.artwork" :alt="item.title" class="search-thumb-img">
                       <span v-else class="search-thumb-fallback">♫</span>
-                      <button v-if="item.previewUrl" class="card-play-preview-btn" :class="{isPlaying: activePreviewUrl===item.previewUrl}" @click="toggleAudioPreview(item.previewUrl)" title="Nghe thử đoạn 30s">
+                      <button v-if="item.previewUrl" class="card-play-preview-btn" :class="{isPlaying: activePreviewUrl===item.previewUrl}" @click.stop="toggleAudioPreview(item.previewUrl)" title="Nghe thử đoạn 30s">
                         {{ activePreviewUrl===item.previewUrl ? '⏸' : '▶' }}
+                      </button>
+                      <button v-else-if="item.youtubeUrl" class="card-play-preview-btn" @click.stop="playSongFromSearch(item)" title="Bấm nghe thử video trong web">
+                        ▶
                       </button>
                     </div>
                     <div class="search-card-meta">
@@ -1612,10 +1641,13 @@ onUnmounted(() => {
                       <span class="genre-badge">{{ item.genre }}</span>
                     </div>
                     <div class="search-card-actions">
-                      <a :href="item.spotifyUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn spotify-action-btn" title="Mở trên Spotify">
+                      <button class="btn mini-btn play-in-web-btn" @click="playSongFromSearch(item)" title="Bấm nghe thử video trực tiếp trên web">
+                        ▶ Nghe thử
+                      </button>
+                      <a v-if="item.spotifyUrl" :href="item.spotifyUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn spotify-action-btn" title="Mở trên Spotify">
                         🟢 Spotify
                       </a>
-                      <a :href="item.youtubeUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn yt-action-btn" title="Tìm trên YouTube">
+                      <a :href="item.youtubeUrl" target="_blank" rel="noopener noreferrer" class="btn mini-btn yt-action-btn" title="Mở video trên YouTube">
                         🔴 YouTube
                       </a>
                       <button class="btn add-song-btn" :disabled="isSongAdded(item)" @click="addSongFromSearch(item)" title="Thêm bài này vào danh sách giải đấu">
@@ -1763,7 +1795,7 @@ onUnmounted(() => {
           <div class="section-head"><div><span class="mini-icon">♫</span><h3>Giải đấu gần đây</h3></div><button class="text-btn" @click="loadTournaments">↻ Làm mới</button></div>
           <div v-if="!tournaments.length" class="empty-state"><div class="empty-note">♫</div><b>Chưa có giải đấu nào</b><p>Tạo giải đầu tiên của bạn ở khung bên trái nhé.</p></div>
           <button v-for="t in tournaments" :key="t.id" class="tournament-row" @click="openTournament(t.id)">
-            <span class="album">♫</span><span class="tournament-info"><b>{{ t.name }}</b><small>{{ t.songCount }} bài · {{ t.completedMatches }} trận đã có kết quả</small></span><span class="row-status" :class="{closed:!t.active}">{{ t.active?'Đang mở':'Đã đóng' }}</span><span>›</span>
+            <span class="album">♫</span><span class="tournament-info"><b>{{ t.name }}</b><small>{{ t.songCount }} bài · {{ t.completedMatches }} trận đã có kết quả</small></span><span class="row-status" :class="{closed:!t.active}">{{ t.active?'Đang mở':'Đã đóng' }}</span><span class="row-arrow">›</span>
           </button>
         </div>
       </section>
