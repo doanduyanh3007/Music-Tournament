@@ -804,8 +804,8 @@ function loadPreset(count) {
   if (count === 8) {
     songText.value = `Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg
 Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00
-Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk
-Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM
+Blue Bird — Ikimono-gakari | https://youtu.be/kRP75mkeQ58
+Kaikai Kitan — Eve | https://youtu.be/1tk1pqwrOys
 Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ
 Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o
 Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A
@@ -813,8 +813,8 @@ Again — YUI | https://youtu.be/2DYYVp4QXew`
   } else if (count === 16) {
     songText.value = `Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg
 Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00
-Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk
-Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM
+Blue Bird — Ikimono-gakari | https://youtu.be/kRP75mkeQ58
+Kaikai Kitan — Eve | https://youtu.be/1tk1pqwrOys
 Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ
 Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o
 Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A
@@ -832,8 +832,8 @@ Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
     const base = [
       'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
       'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
-      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
-      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/kRP75mkeQ58',
+      'Kaikai Kitan — Eve | https://youtu.be/1tk1pqwrOys',
       'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
       'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
       'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
@@ -868,8 +868,8 @@ Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
     const list48 = [
       'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
       'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
-      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
-      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/kRP75mkeQ58',
+      'Kaikai Kitan — Eve | https://youtu.be/1tk1pqwrOys',
       'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
       'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
       'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
@@ -920,8 +920,8 @@ Lemon — Kenshi Yonezu | https://youtu.be/SX_ViT4Ra7k`
     const list64 = [
       'Sparkle — RADWIMPS | https://youtu.be/a2GujJZfXpg',
       'Gurenge — LiSA | https://youtu.be/CwkzK-F0Y00',
-      'Blue Bird — Ikimono-gakari | https://youtu.be/bM3OAPfrjzk',
-      'Kaikai Kitan — Eve | https://youtu.be/K_7To_y9IAM',
+      'Blue Bird — Ikimono-gakari | https://youtu.be/kRP75mkeQ58',
+      'Kaikai Kitan — Eve | https://youtu.be/1tk1pqwrOys',
       'Idol — YOASOBI | https://youtu.be/ZRtdQ81jPUQ',
       'Unravel — TK from 凛として時雨 | https://youtu.be/7aMOurgDB-o',
       'Silhouette — KANA-BOON | https://youtu.be/dlFA0Zq1k2A',
