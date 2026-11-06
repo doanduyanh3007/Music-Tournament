@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { winnerEmbed } from './winnerMedia.js'
+import { recordingKey } from './songInput.js'
 
 const props = defineProps({
   isAdmin: { type: Boolean, default: false }
@@ -8,12 +10,76 @@ const props = defineProps({
 // Tab: 'solo' | 'multiplayer'
 const activeMainTab = ref('solo')
 
-// Game states: 'lobby' | 'playing' | 'round_result' | 'game_over'
+// Game states: 'lobby' | 'playing' | 'round_result' | 'countdown' | 'game_over'
 const gameState = ref('lobby')
 
 // --- Player Identity ---
 const playerKey = ref(localStorage.getItem('musicTournamentVoterKey') || 'player_' + Math.random().toString(36).substring(2, 9))
 const displayName = ref(localStorage.getItem('musicTournamentDisplayName') || 'Game Thủ')
+
+// --- 3-Second Countdown & Intermission State ---
+const countdownSeconds = ref(3)
+const isCountingDown = ref(false)
+let countdownTimer = null
+const isReplayingAnswer = ref(false)
+const lastCountdownSec = ref(null)
+
+// Audio Fallback state
+const audioHasError = ref(false)
+const fallbackEmbedUrl = ref(null)
+
+function getResolvedArtwork(res, q) {
+  if (res?.officialArtwork && /^https?:\/\//i.test(res.officialArtwork)) return res.officialArtwork
+  if (q?.artworkUrl && /^https?:\/\//i.test(q.artworkUrl)) return q.artworkUrl
+  const yt = res?.officialYoutubeUrl || q?.youtubeUrl || res?.audioUrl || q?.audioUrl
+  if (yt) {
+    const key = recordingKey(yt)
+    if (key?.startsWith('youtube:')) {
+      return `https://img.youtube.com/vi/${key.slice(8)}/hqdefault.jpg`
+    }
+  }
+  return '/logo.png'
+}
+
+function playCountdownBeep(isFinal = false) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(isFinal ? 880 : 440, ctx.currentTime)
+    gain.gain.setValueAtTime(0.12, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (isFinal ? 0.35 : 0.15))
+    osc.start()
+    osc.stop(ctx.currentTime + (isFinal ? 0.35 : 0.15))
+  } catch (e) {}
+}
+
+function startSoloCountdown(callback) {
+  stopAudio()
+  isCountingDown.value = true
+  countdownSeconds.value = 3
+  gameState.value = 'countdown'
+  playCountdownBeep(false)
+
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
+    countdownSeconds.value -= 1
+    if (countdownSeconds.value > 0) {
+      playCountdownBeep(false)
+    } else {
+      playCountdownBeep(true)
+      clearInterval(countdownTimer)
+      countdownTimer = null
+      setTimeout(() => {
+        isCountingDown.value = false
+        callback()
+      }, 350)
+    }
+  }, 1000)
+}
 
 // --- Solo Configuration ---
 const selectedMode = ref('TEN_QUESTIONS') // 'TEN_QUESTIONS' | 'ENDLESS' | 'DAILY_CHALLENGE' | 'BLIND_RANDOM' | 'CATEGORY'
@@ -90,8 +156,9 @@ async function startSoloGame() {
     sessionId.value = data.sessionId
     currentScore.value = 0
     currentStreak.value = 0
-    setupQuestion(data.question)
-    gameState.value = 'playing'
+    startSoloCountdown(() => {
+      setupQuestion(data.question)
+    })
   } catch (err) {
     alert(err.message)
   }
@@ -218,13 +285,27 @@ function startMultiplayerPolling(code) {
         // Handle question audio playback when question changes
         if (state.status === 'PLAYING') {
           if (!currentQuestion.value || currentQuestion.value.questionId !== state.questionId) {
+            isReplayingAnswer.value = false
             setupMultiplayerQuestion(state)
           } else {
             timeRemaining.value = state.timeRemaining
           }
         } else if (state.status === 'ROUND_RESULT') {
+          stopTimer()
+          if (!isReplayingAnswer.value) {
+            isReplayingAnswer.value = true
+            stopAudio()
+            const replayUrl = state.audioUrl || state.officialYoutubeUrl
+            playAudio(replayUrl, false)
+          }
+        } else if (state.status === 'COUNTDOWN') {
           stopAudio()
           stopTimer()
+          isReplayingAnswer.value = false
+          if (lastCountdownSec.value !== state.countdownRemaining) {
+            lastCountdownSec.value = state.countdownRemaining
+            playCountdownBeep(state.countdownRemaining === 1)
+          }
         }
       }
     } catch (e) {}
@@ -314,20 +395,63 @@ function stopTimer() {
   }
 }
 
-function playAudio(url) {
+function playAudio(url, loop = false) {
   stopAudio()
-  if (!url) return
+  audioHasError.value = false
+  fallbackEmbedUrl.value = null
+  if (!url) {
+    applyAudioFallback()
+    return
+  }
   if (url.includes('youtube.com') || url.includes('youtu.be')) {
-    isAudioPlaying.value = true
+    applyYoutubeEmbed(url)
     return
   }
   try {
     const audio = new Audio(url)
-    audio.play().then(() => { isAudioPlaying.value = true }).catch(() => { isAudioPlaying.value = false })
-    audio.onended = () => { isAudioPlaying.value = false }
+    audio.preload = 'auto'
+    audio.loop = loop
+
+    audio.onerror = () => {
+      console.warn('Audio preview error for:', url)
+      applyAudioFallback()
+    }
+
+    audio.play().then(() => {
+      isAudioPlaying.value = true
+    }).catch(err => {
+      console.warn('Audio play failed:', err)
+      applyAudioFallback()
+    })
+
+    audio.onended = () => {
+      if (!loop) isAudioPlaying.value = false
+    }
+
     currentAudio.value = audio
   } catch (e) {
+    applyAudioFallback()
+  }
+}
+
+function applyAudioFallback() {
+  const yt = currentQuestion.value?.youtubeUrl || lastResult.value?.officialYoutubeUrl || currentRoom.value?.officialYoutubeUrl
+  if (yt) {
+    applyYoutubeEmbed(yt)
+  } else {
     isAudioPlaying.value = false
+    audioHasError.value = true
+  }
+}
+
+function applyYoutubeEmbed(youtubeUrl) {
+  const embed = winnerEmbed(youtubeUrl)
+  if (embed?.url) {
+    fallbackEmbedUrl.value = embed.url
+    isAudioPlaying.value = true
+  } else {
+    isAudioPlaying.value = false
+    audioHasError.value = true
   }
 }
 
@@ -336,7 +460,17 @@ function stopAudio() {
     currentAudio.value.pause()
     currentAudio.value = null
   }
+  fallbackEmbedUrl.value = null
   isAudioPlaying.value = false
+}
+
+function toggleReplayAudio(item) {
+  if (isAudioPlaying.value) {
+    stopAudio()
+  } else {
+    const url = item?.audioUrl || item?.officialPreviewUrl || item?.officialYoutubeUrl
+    playAudio(url, false)
+  }
 }
 
 async function submitAnswer() {
@@ -410,6 +544,13 @@ async function submitAnswer() {
     }
 
     gameState.value = 'round_result'
+
+    // REPLAY ANSWER SONG FROM BEGINNING ON INTERMISSION
+    stopAudio()
+    const replayUrl = data.audioUrl || data.officialYoutubeUrl
+    if (replayUrl) {
+      playAudio(replayUrl, false)
+    }
   } catch (err) {
     alert(err.message)
   } finally {
@@ -437,6 +578,13 @@ async function skipQuestion() {
         summary.value = data.summary
       }
       gameState.value = 'round_result'
+
+      // REPLAY ANSWER SONG FROM BEGINNING ON INTERMISSION
+      stopAudio()
+      const replayUrl = data.audioUrl || data.officialYoutubeUrl
+      if (replayUrl) {
+        playAudio(replayUrl, false)
+      }
     }
   } catch (e) {}
 }
@@ -486,15 +634,18 @@ async function nextQuestion() {
     return
   }
 
-  try {
-    const res = await fetch(`/api/quiz/game/${sessionId.value}/next`)
-    if (res.ok) {
-      const data = await res.json()
-      setupQuestion(data)
+  // 3-SECOND PREPARATION COUNTDOWN
+  startSoloCountdown(async () => {
+    try {
+      const res = await fetch(`/api/quiz/game/${sessionId.value}/next`)
+      if (res.ok) {
+        const data = await res.json()
+        setupQuestion(data)
+      }
+    } catch (e) {
+      alert('Không thể tải câu hỏi tiếp theo')
     }
-  } catch (e) {
-    alert('Không thể tải câu hỏi tiếp theo')
-  }
+  })
 }
 
 const performanceGrade = computed(() => {
@@ -624,7 +775,22 @@ onUnmounted(() => {
       </div>
 
       <!-- SOLO GAMEPLAY -->
-      <div v-else-if="gameState === 'playing' || gameState === 'round_result'" class="arena-play-container">
+      <div v-else-if="gameState === 'playing' || gameState === 'round_result' || gameState === 'countdown'" class="arena-play-container">
+        <!-- 3-Second Preparation Countdown Overlay -->
+        <div v-if="gameState === 'countdown'" class="countdown-preparation-overlay">
+          <div class="countdown-card">
+            <div class="countdown-badge">SẮP PHÁT GIAI ĐIỆU MỚI</div>
+            <div class="countdown-big-number">
+              <span class="animated-number">{{ countdownSeconds }}</span>
+            </div>
+            <p class="countdown-tip">
+              <span v-if="countdownSeconds === 3">🎧 Đeo tai nghe và sẵn sàng...</span>
+              <span v-else-if="countdownSeconds === 2">⚡ Nhớ tên bài hát hoặc nghệ sĩ...</span>
+              <span v-else>🚀 CHIẾN THÔI!</span>
+            </p>
+          </div>
+        </div>
+
         <div class="play-meta-bar">
           <span class="q-counter">CÂU HỎI {{ currentQuestion?.questionNumber }} / {{ currentQuestion?.totalQuestions }}</span>
           <div class="meta-right">
@@ -642,34 +808,95 @@ onUnmounted(() => {
           <div class="vinyl-disc-wrapper" :class="{ spinning: isAudioPlaying }">
             <div class="vinyl-grooves">
               <div class="vinyl-center-art">
-                <img v-if="!currentQuestion?.isBlind && currentQuestion?.artworkUrl" :src="currentQuestion?.artworkUrl" alt="Artwork" class="disc-art-img" />
+                <!-- If round ended / Intermission: reveal the real cover! -->
+                <img 
+                  v-if="gameState === 'round_result'" 
+                  :src="getResolvedArtwork(lastResult, currentQuestion)" 
+                  alt="Artwork Revealed" 
+                  class="disc-art-img" 
+                />
+                <!-- If playing: show artwork only if NOT blind -->
+                <img 
+                  v-else-if="!currentQuestion?.isBlind && currentQuestion?.artworkUrl" 
+                  :src="currentQuestion?.artworkUrl" 
+                  alt="Artwork" 
+                  class="disc-art-img" 
+                />
                 <div v-else class="disc-art-placeholder"><span>{{ currentQuestion?.isBlind ? '❓' : '🎵' }}</span></div>
               </div>
             </div>
           </div>
           <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
-          <p v-if="currentQuestion?.isBlind" class="blind-notice">🙈 Chế độ Đoán Mù: Ảnh bìa đã được bảo mật!</p>
+
+          <p v-if="gameState === 'round_result'" class="revealed-stage-notice">
+            ✨ {{ lastResult?.officialTitle }} — {{ lastResult?.officialArtist }}
+          </p>
+          <p v-else-if="currentQuestion?.isBlind" class="blind-notice">🙈 Chế độ Đoán Mù: Ảnh bìa đã được bảo mật!</p>
         </div>
 
-        <!-- Result Card -->
-        <div v-if="gameState === 'round_result'" class="round-result-card" :class="lastResult?.status?.toLowerCase()">
+        <!-- Result Card / Intermission -->
+        <div v-if="gameState === 'round_result'" class="round-result-card intermission-mode" :class="lastResult?.status?.toLowerCase()">
           <div class="result-badge-row">
-            <span v-if="lastResult?.status === 'EXACT' || lastResult?.status === 'CORRECT'" class="res-badge win">✨ CHÍNH XÁC! (+{{ lastResult?.earnedPoints }} điểm)</span>
+            <span v-if="lastResult?.status === 'EXACT' || lastResult?.status === 'CORRECT'" class="res-badge win">
+              ✨ CHÍNH XÁC! (+{{ lastResult?.earnedPoints }} điểm)
+            </span>
             <span v-else class="res-badge fail">❌ HẾT GIỜ HOẶC BỎ QUA</span>
+            <span v-if="lastResult?.firstBlood" class="fb-pill-banner">
+              🩸⚡ FIRST BLOOD! Trả lời thần tốc (+50đ)
+            </span>
           </div>
+
           <div class="official-answer-reveal">
-            <img :src="lastResult?.officialArtwork || 'https://img.youtube.com/vi/' + (lastResult?.officialYoutubeUrl ? lastResult?.officialYoutubeUrl.slice(-11) : '') + '/hqdefault.jpg'" class="revealed-cover" alt="Official" />
+            <img :src="getResolvedArtwork(lastResult, currentQuestion)" class="revealed-cover" alt="Official" />
             <div class="revealed-text">
               <h3>{{ lastResult?.officialTitle }}</h3>
               <p class="artist-reveal">👤 {{ lastResult?.officialArtist }}</p>
               <small v-if="lastResult?.aliases" class="aliases-reveal">Tên khác: {{ lastResult?.aliases }}</small>
+
+              <!-- Audio Replay Control in Intermission -->
+              <div class="intermission-audio-bar">
+                <button class="replay-audio-btn" @click="toggleReplayAudio(lastResult)">
+                  {{ isAudioPlaying ? '⏸ Tạm dừng nghe lại' : '▶ Nghe lại từ đầu' }}
+                </button>
+                <a v-if="lastResult?.officialYoutubeUrl" :href="lastResult.officialYoutubeUrl" target="_blank" rel="noopener noreferrer" class="link-external-btn">
+                  🔴 YouTube
+                </a>
+              </div>
             </div>
           </div>
-          <button class="arena-hero-start-btn next-q-btn" @click="nextQuestion">{{ lastResult?.isFinished ? '🏆 Xem Tổng Kết Trận Đấu' : 'Câu Tiếp Theo ▶' }}</button>
+
+          <!-- Points Breakdown -->
+          <div class="points-breakdown-bar" v-if="lastResult?.earnedPoints > 0">
+            <div class="breakdown-item"><small>Cơ bản</small> <b>+{{ lastResult?.basePoints || 100 }}</b></div>
+            <div class="breakdown-item" v-if="lastResult?.speedBonus"><small>Tốc độ</small> <b>+{{ lastResult.speedBonus }}</b></div>
+            <div class="breakdown-item" v-if="lastResult?.streakBonus"><small>Chuỗi</small> <b>+{{ lastResult.streakBonus }}</b></div>
+            <div class="breakdown-item fb" v-if="lastResult?.firstBlood"><small>First Blood</small> <b>+50</b></div>
+            <div class="breakdown-item penalty" v-if="lastResult?.hintPenalty"><small>Dùng gợi ý</small> <b>-{{ lastResult.hintPenalty }}</b></div>
+          </div>
+
+          <!-- Solo Mini Stats -->
+          <div class="solo-intermission-stats">
+            <div class="mini-stat-chip">
+              <span>Tổng điểm:</span>
+              <b class="gold">{{ currentScore }}</b>
+            </div>
+            <div class="mini-stat-chip">
+              <span>Chuỗi thắng:</span>
+              <b class="flame">🔥 {{ currentStreak }}</b>
+            </div>
+            <div class="mini-stat-chip">
+              <span>Tiến độ:</span>
+              <b>{{ currentQuestion?.questionNumber }} / {{ currentQuestion?.totalQuestions }}</b>
+            </div>
+          </div>
+
+          <button class="arena-hero-start-btn next-q-btn" @click="nextQuestion">
+            {{ lastResult?.isFinished ? '🏆 Xem Tổng Kết Trận Đấu' : 'Câu Tiếp Theo ▶ (3s Chuẩn Bị)' }}
+          </button>
         </div>
 
         <!-- Controls -->
-        <div v-else class="arena-answer-controls">
+        <div v-else-if="gameState === 'playing'" class="arena-answer-controls">
           <div v-if="answerFeedback?.type === 'almost'" class="almost-banner"><span>⚡ {{ answerFeedback.message }}</span></div>
           <div class="input-action-row">
             <input type="text" v-model="playerAnswer" :placeholder="currentQuestion?.targetType === 'ARTIST' ? 'Nhập tên nghệ sĩ hoặc nhóm nhạc...' : 'Nhập tên bài hát...'" class="arena-guess-input" autofocus @keydown.enter="submitAnswer" />
@@ -834,8 +1061,23 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- MULTIPLAYER PLAYING OR ROUND RESULT -->
-        <div v-else-if="currentRoom.status === 'PLAYING' || currentRoom.status === 'ROUND_RESULT'" class="mp-battlefield-layout">
+        <!-- MULTIPLAYER PLAYING, ROUND RESULT, OR COUNTDOWN -->
+        <div v-else-if="currentRoom.status === 'PLAYING' || currentRoom.status === 'ROUND_RESULT' || currentRoom.status === 'COUNTDOWN'" class="mp-battlefield-layout">
+          <!-- 3-Second Synchronized Preparation Countdown Overlay -->
+          <div v-if="currentRoom.status === 'COUNTDOWN'" class="countdown-preparation-overlay">
+            <div class="countdown-card">
+              <div class="countdown-badge">SẮP PHÁT GIAI ĐIỆU MỚI (ĐỒNG BỘ PHÒNG)</div>
+              <div class="countdown-big-number">
+                <span class="animated-number">{{ currentRoom.countdownRemaining || 3 }}</span>
+              </div>
+              <p class="countdown-tip">
+                <span v-if="(currentRoom.countdownRemaining || 3) === 3">🎧 Đeo tai nghe và sẵn sàng...</span>
+                <span v-else-if="(currentRoom.countdownRemaining || 3) === 2">⚡ Nhớ tên bài hát hoặc nghệ sĩ...</span>
+                <span v-else>🚀 CHIẾN THÔI!</span>
+              </p>
+            </div>
+          </div>
+
           <!-- Left: Game arena stage & answering -->
           <div class="mp-main-battle-pane">
             <div class="play-meta-bar">
@@ -863,37 +1105,57 @@ onUnmounted(() => {
               <div class="vinyl-disc-wrapper" :class="{ spinning: isAudioPlaying }">
                 <div class="vinyl-grooves">
                   <div class="vinyl-center-art">
-                    <img v-if="currentRoom.status === 'ROUND_RESULT' && currentRoom.officialArtwork" :src="currentRoom.officialArtwork" alt="Cover" class="disc-art-img" />
+                    <img v-if="currentRoom.status === 'ROUND_RESULT'" :src="getResolvedArtwork(currentRoom, currentQuestion)" alt="Cover" class="disc-art-img" />
                     <div v-else class="disc-art-placeholder"><span>🎵</span></div>
                   </div>
                 </div>
               </div>
               <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
+              <p v-if="currentRoom.status === 'ROUND_RESULT'" class="revealed-stage-notice">
+                ✨ {{ currentRoom.officialTitle }} — {{ currentRoom.officialArtist }}
+              </p>
             </div>
 
-            <!-- ROUND RESULT REVEAL -->
-            <div v-if="currentRoom.status === 'ROUND_RESULT'" class="round-result-card">
+            <!-- ROUND RESULT REVEAL / INTERMISSION -->
+            <div v-if="currentRoom.status === 'ROUND_RESULT'" class="round-result-card intermission-mode">
               <div v-if="currentRoom.firstBloodWinner" class="first-blood-announcement">
                 🩸 FIRST BLOOD THUỘC VỀ: <b>{{ currentRoom.firstBloodWinner }}</b> (+50đ Thưởng)
               </div>
               <div class="official-answer-reveal">
-                <img :src="currentRoom.officialArtwork" class="revealed-cover" alt="Official" />
+                <img :src="getResolvedArtwork(currentRoom, currentQuestion)" class="revealed-cover" alt="Official" />
                 <div class="revealed-text">
                   <h3>{{ currentRoom.officialTitle }}</h3>
                   <p class="artist-reveal">👤 {{ currentRoom.officialArtist }}</p>
                   <small v-if="currentRoom.aliases" class="aliases-reveal">Tên khác: {{ currentRoom.aliases }}</small>
+
+                  <!-- Audio Replay Control in Intermission -->
+                  <div class="intermission-audio-bar">
+                    <button class="replay-audio-btn" @click="toggleReplayAudio(currentRoom)">
+                      {{ isAudioPlaying ? '⏸ Tạm dừng nghe lại' : '▶ Nghe lại từ đầu' }}
+                    </button>
+                    <a v-if="currentRoom.officialYoutubeUrl" :href="currentRoom.officialYoutubeUrl" target="_blank" rel="noopener noreferrer" class="link-external-btn">
+                      🔴 YouTube
+                    </a>
+                  </div>
                 </div>
               </div>
+
+              <!-- Intermission Timer Banner -->
+              <div class="intermission-timer-banner">
+                <span class="timer-icon">⏳</span>
+                <span>Khoảng nghỉ: Còn <b>{{ currentRoom.intermissionRemaining != null ? currentRoom.intermissionRemaining : 10 }}s</b> trước khi chuyển câu tự động</span>
+              </div>
+
               <div v-if="isHost" class="host-next-row">
                 <button class="arena-hero-start-btn next-q-btn" @click="advanceMultiplayerRound">
                   {{ currentRoom.currentQuestionIndex >= currentRoom.totalQuestions ? '🏆 Xem Bảng Xếp Hạng Chung Cuộc' : 'Chuyển Câu Tiếp Theo ▶' }}
                 </button>
               </div>
-              <p v-else class="waiting-host-text">⏳ Đang đợi Chủ phòng chuyển sang câu tiếp theo...</p>
+              <p v-else class="waiting-host-text">⏳ Đang trong khoảng nghỉ... Hệ thống sẽ tự động chuyển câu hoặc khi Chủ phòng bấm tiếp tục.</p>
             </div>
 
             <!-- ANSWER CONTROLS -->
-            <div v-else class="arena-answer-controls">
+            <div v-else-if="currentRoom.status === 'PLAYING'" class="arena-answer-controls">
               <div v-if="answerFeedback" class="almost-banner" :class="answerFeedback.type">
                 <span>{{ answerFeedback.message }}</span>
               </div>
@@ -967,6 +1229,14 @@ onUnmounted(() => {
         </div>
       </div>
     </template>
+
+    <!-- Hidden iframe for YouTube audio fallback when MP3 preview is unavailable or broken -->
+    <iframe 
+      v-if="fallbackEmbedUrl" 
+      :src="fallbackEmbedUrl" 
+      allow="autoplay" 
+      style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;"
+    ></iframe>
   </div>
 </template>
 
@@ -1645,6 +1915,187 @@ onUnmounted(() => {
 .podium-medal { font-size: 2.2rem; margin-bottom: 6px; }
 .podium-card h3 { margin: 0; font-size: 1.15rem; color: #f8fafc; }
 .podium-score { font-size: 1.3rem; font-weight: 800; color: #fbbf24; margin: 4px 0; }
+
+/* =================================================== */
+/* 3-SECOND PREPARATION COUNTDOWN OVERLAY              */
+/* =================================================== */
+.countdown-preparation-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 22, 0.94);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  animation: fadeIn 0.2s ease;
+}
+
+.countdown-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.countdown-badge {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 4px 16px;
+  background: rgba(168, 85, 247, 0.25);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  border-radius: 999px;
+}
+
+.countdown-big-number {
+  font-size: 5.5rem;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(135deg, #f8fafc 0%, #c084fc 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.7));
+  animation: pulseScale 0.95s infinite ease-in-out;
+}
+
+@keyframes pulseScale {
+  0% { transform: scale(0.92); opacity: 0.85; }
+  50% { transform: scale(1.12); opacity: 1; filter: drop-shadow(0 0 40px rgba(6, 182, 212, 0.95)); }
+  100% { transform: scale(0.92); opacity: 0.85; }
+}
+
+.countdown-tip {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+/* Intermission Extras */
+.revealed-stage-notice {
+  font-size: 1rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, #38bdf8, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+  margin: 10px 0 0;
+}
+
+.fb-pill-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(249, 115, 22, 0.25));
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.intermission-audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.replay-audio-btn {
+  background: rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  color: #f1f5f9;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.replay-audio-btn:hover {
+  background: rgba(168, 85, 247, 0.45);
+  color: #fff;
+}
+
+.link-external-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.link-external-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.points-breakdown-bar {
+  display: flex;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.breakdown-item small {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.breakdown-item b {
+  font-size: 0.88rem;
+  color: #34d399;
+}
+
+.breakdown-item.fb b { color: #f87171; }
+.breakdown-item.penalty b { color: #fb923c; }
+
+.solo-intermission-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mini-stat-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.intermission-timer-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: #67e8f9;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
 
 @media (max-width: 860px) {
   .mp-room-setup-grid { grid-template-columns: 1fr; }

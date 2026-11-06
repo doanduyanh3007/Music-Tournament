@@ -234,6 +234,8 @@ public class QuizEngineService {
         clientPayload.put("targetType", session.targetType);
         clientPayload.put("isBlind", isBlind);
         clientPayload.put("audioUrl", picked.getPreviewUrl() != null && !picked.getPreviewUrl().isBlank() ? picked.getPreviewUrl() : picked.getYoutubeUrl());
+        clientPayload.put("youtubeUrl", picked.getYoutubeUrl());
+        clientPayload.put("spotifyUrl", picked.getSpotifyUrl());
         clientPayload.put("artworkUrl", isBlind ? null : picked.getArtworkUrl());
         clientPayload.put("genre", picked.getGenre());
         clientPayload.put("difficultyTier", picked.getDifficultyTier());
@@ -335,7 +337,11 @@ public class QuizEngineService {
         res.put("officialArtist", song.getArtist());
         res.put("officialArtwork", song.getArtworkUrl());
         res.put("officialYoutubeUrl", song.getYoutubeUrl());
+        res.put("audioUrl", song.getPreviewUrl() != null && !song.getPreviewUrl().isBlank() ? song.getPreviewUrl() : song.getYoutubeUrl());
         res.put("aliases", song.getAliases());
+
+        boolean isFirstBlood = matchResult.isCorrect() && (timeTakenMs != null && timeTakenMs <= 6000) && currentQ.usedHintTypes.isEmpty();
+        res.put("firstBlood", isFirstBlood);
 
         // Check if finished
         if (session.currentQuestionIndex >= session.totalQuestions) {
@@ -404,10 +410,15 @@ public class QuizEngineService {
 
         Map<String, Object> res = new HashMap<>();
         res.put("status", "SKIPPED");
+        res.put("earnedPoints", 0);
+        res.put("currentScore", session.score);
+        res.put("currentStreak", 0);
         res.put("officialTitle", q.song.getTitle());
         res.put("officialArtist", q.song.getArtist());
         res.put("officialArtwork", q.song.getArtworkUrl());
         res.put("officialYoutubeUrl", q.song.getYoutubeUrl());
+        res.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());
+        res.put("aliases", q.song.getAliases());
 
         if (session.currentQuestionIndex >= session.totalQuestions) {
             session.isFinished = true;

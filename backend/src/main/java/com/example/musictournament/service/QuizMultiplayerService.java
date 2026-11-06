@@ -81,6 +81,12 @@ public class QuizMultiplayerService {
         public int currentQuestionIndex = 0;
         public CurrentMultiplayerQuestion currentQuestion;
         public long lastActivityTimestamp = System.currentTimeMillis();
+
+        // Synchronized Intermission & 3-Second Countdown fields
+        public long intermissionStartedAtMs = 0;
+        public int intermissionDurationSeconds = 15;
+        public long countdownStartedAtMs = 0;
+        public int countdownDurationSeconds = 3;
     }
 
     // ==========================================
@@ -322,8 +328,9 @@ public class QuizMultiplayerService {
 
     private void checkIfRoundFinished(QuizMultiplayerRoom room) {
         boolean allAnswered = room.players.values().stream().allMatch(p -> p.hasAnswered);
-        if (allAnswered) {
+        if (allAnswered && "PLAYING".equals(room.status)) {
             room.status = "ROUND_RESULT";
+            room.intermissionStartedAtMs = System.currentTimeMillis();
         }
     }
 
@@ -332,7 +339,12 @@ public class QuizMultiplayerService {
         if (!room.hostPlayerKey.equals(hostPlayerKey)) {
             throw new IllegalArgumentException("Chỉ chủ phòng mới có quyền chuyển câu hỏi");
         }
-        advanceToNextQuestion(room);
+        if (room.currentQuestionIndex >= room.preparedSongs.size()) {
+            room.status = "GAME_OVER";
+        } else {
+            room.status = "COUNTDOWN";
+            room.countdownStartedAtMs = System.currentTimeMillis();
+        }
         return getRoomState(roomCode, hostPlayerKey);
     }
 
@@ -408,6 +420,18 @@ public class QuizMultiplayerService {
         playersList.sort((a, b) -> Integer.compare((int) b.get("score"), (int) a.get("score")));
         state.put("players", playersList);
 
+        if ("COUNTDOWN".equals(room.status)) {
+            long now = System.currentTimeMillis();
+            long elapsedCountdown = (now - room.countdownStartedAtMs) / 1000;
+            int countdownRemaining = (int) Math.max(0, room.countdownDurationSeconds - elapsedCountdown);
+            state.put("countdownRemaining", countdownRemaining);
+
+            if (countdownRemaining == 0) {
+                advanceToNextQuestion(room);
+                state.put("status", "PLAYING");
+            }
+        }
+
         // SECURE QUESTION METADATA
         if (room.currentQuestion != null) {
             CurrentMultiplayerQuestion q = room.currentQuestion;
@@ -418,6 +442,7 @@ public class QuizMultiplayerService {
             // Automatically flip to ROUND_RESULT if timer expired
             if (remainingSeconds == 0 && "PLAYING".equals(room.status)) {
                 room.status = "ROUND_RESULT";
+                room.intermissionStartedAtMs = System.currentTimeMillis();
                 state.put("status", "ROUND_RESULT");
             }
 
@@ -428,6 +453,7 @@ public class QuizMultiplayerService {
             if ("PLAYING".equals(room.status)) {
                 // NEVER LEAK TITLE, ARTIST, OR WHO SOLVED IT!
                 state.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());
+                state.put("youtubeUrl", q.song.getYoutubeUrl());
                 state.put("genre", q.song.getGenre());
                 state.put("difficultyTier", q.song.getDifficultyTier());
 
@@ -444,11 +470,31 @@ public class QuizMultiplayerService {
                 state.put("officialArtist", q.song.getArtist());
                 state.put("officialArtwork", q.song.getArtworkUrl());
                 state.put("officialYoutubeUrl", q.song.getYoutubeUrl());
+                state.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());
                 state.put("aliases", q.song.getAliases());
 
                 if (q.firstBloodPlayerKey != null) {
                     RoomPlayer fbPlayer = room.players.get(q.firstBloodPlayerKey);
                     state.put("firstBloodWinner", fbPlayer != null ? fbPlayer.displayName : null);
+                }
+
+                if ("ROUND_RESULT".equals(room.status)) {
+                    long elapsedIntermission = (now - room.intermissionStartedAtMs) / 1000;
+                    int intermissionRemaining = (int) Math.max(0, room.intermissionDurationSeconds - elapsedIntermission);
+                    state.put("intermissionRemaining", intermissionRemaining);
+
+                    // Auto-advance to countdown if intermission timeout expires
+                    if (room.intermissionStartedAtMs > 0 && intermissionRemaining == 0) {
+                        if (room.currentQuestionIndex >= room.preparedSongs.size()) {
+                            room.status = "GAME_OVER";
+                            state.put("status", "GAME_OVER");
+                        } else {
+                            room.status = "COUNTDOWN";
+                            room.countdownStartedAtMs = System.currentTimeMillis();
+                            state.put("status", "COUNTDOWN");
+                            state.put("countdownRemaining", 3);
+                        }
+                    }
                 }
             }
         }
