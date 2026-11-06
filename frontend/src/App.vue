@@ -5,6 +5,7 @@ import ChampionStage from './ChampionStage.vue'
 import SongBadge from './SongBadge.vue'
 import VoteSelection from './VoteSelection.vue'
 import ArenaMatchCard from './ArenaMatchCard.vue'
+import MusicManager from './MusicManager.vue'
 import { selectedVoteSong, isVotingOpen, canChangeVote } from './voteState.js'
 import { getChampionship, createCoronationTracker } from './championship.js'
 
@@ -1580,7 +1581,7 @@ onUnmounted(() => {
         </div>
 
       </div>
-      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
+      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'music-manager',icon:'🎧',label:'Kho nhạc & Playlist'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
         <span>{{ item.icon }}</span><span class="nav-label">{{ item.label }}</span>
       </button>
@@ -1591,7 +1592,7 @@ onUnmounted(() => {
       <div class="page-heading">
         <div>
           <p class="eyebrow">MUSIC TOURNAMENT ENGINE / PRO BRACKETS</p>
-          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
+          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='music-manager'?'Kho nhạc & Đồng bộ Playlist':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
           <p class="muted">Tùy biến nhánh đấu, tải danh sách tốc độ cao và mở/đóng từng vòng bình chọn linh hoạt.</p>
         </div>
         <div class="heading-badges">
@@ -2549,6 +2550,11 @@ onUnmounted(() => {
           </div>
           <div v-if="filteredPlayers.length" class="results-pagination"><span>Trang {{ playerPage }} / {{ playerPages }}</span><button class="btn soft" :disabled="playerPage<=1" @click="playerPage--">‹ Trước</button><button class="btn soft" :disabled="playerPage>=playerPages" @click="playerPage++">Sau ›</button></div>
         </template>
+      </section>
+
+      <!-- PAGE: MUSIC MANAGER -->
+      <section v-else-if="page==='music-manager'" class="panel music-manager-panel">
+        <MusicManager :is-admin="isAdmin" />
       </section>
 
       <section v-else-if="page==='results'" class="panel">
