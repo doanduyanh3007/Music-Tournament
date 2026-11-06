@@ -1650,5 +1650,25 @@ onUnmounted(() => {
 @media (max-width: 860px) {
   .mp-room-setup-grid { grid-template-columns: 1fr; }
   .mp-battlefield-layout { grid-template-columns: 1fr; }
+  .arena-top-banner { flex-direction: column; align-items: stretch; }
+  .banner-scores { justify-content: flex-end; }
+  .input-action-row { flex-direction: column; }
+  .submit-guess-btn { padding: 12px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiz-arena-root,
+  .mode-card,
+  .round-result-card,
+  .someone-solved-banner,
+  .arena-timer-fill.urgent,
+  .vinyl-disc-wrapper.spinning,
+  .sound-wave-bars.active .bar {
+    animation: none !important;
+    transition: none !important;
+  }
+  .vinyl-disc-wrapper.spinning {
+    transform: none !important;
+  }
 }
 </style>

@@ -1505,4 +1505,14 @@ input:checked + .slider:before { transform: translateX(16px); }
     justify-content: flex-end;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .music-manager-root,
+  .spinner,
+  .spin-icon,
+  .song-card-row {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 </style>
