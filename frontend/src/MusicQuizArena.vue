@@ -522,7 +522,6 @@ onUnmounted(() => {
     <!-- TOP ARENA BANNER -->
     <div class="arena-top-banner">
       <div class="banner-title">
-        <span class="arena-pill">PRO ARENA</span>
         <h2>⚡ ミュージック・クイズ</h2>
       </div>
 
