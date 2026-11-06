@@ -51,7 +51,7 @@ public class QuizMusicManagerService {
     private static final Pattern YT_VIDEO_PATTERN = Pattern.compile(
             "(?:https?://)?(?:www\\.|m\\.)?(?:youtube\\.com/(?:watch\\?v=|embed/|v/|shorts/)|youtu\\.be/)([a-zA-Z0-9_-]{11})"
     );
-    private static final Pattern SPOTIFY_PLAYLIST_PATTERN = Pattern.compile("playlist/([a-zA-Z0-9]+)");
+    private static final Pattern SPOTIFY_PLAYLIST_PATTERN = Pattern.compile("(?:playlist|album)[:/]([a-zA-Z0-9]+)");
 
     public QuizMusicManagerService(
             QuizSongRepository quizSongRepository,
@@ -357,8 +357,18 @@ public class QuizMusicManagerService {
         String source = "custom";
         if (trimmedUrl.contains("youtube.com") || trimmedUrl.contains("youtu.be")) {
             source = "youtube";
-        } else if (trimmedUrl.contains("spotify.com")) {
+        } else if (trimmedUrl.contains("spotify.com") || trimmedUrl.startsWith("spotify:")) {
             source = "spotify";
+        }
+
+        Optional<QuizPlaylist> existing = quizPlaylistRepository.findFirstBySourceUrl(trimmedUrl);
+        if (existing.isPresent()) {
+            QuizPlaylist pl = existing.get();
+            if (customTitle != null && !customTitle.isBlank()) {
+                pl.setTitle(customTitle.trim());
+                return quizPlaylistRepository.save(pl);
+            }
+            return pl;
         }
 
         String title = customTitle != null && !customTitle.isBlank() ? customTitle.trim() : "Playlist " + source.toUpperCase();
@@ -604,6 +614,16 @@ public class QuizMusicManagerService {
             } catch (Exception ignored) {}
         }
 
+        // Method 3: If playlist failed/private but URL contains a single video ID (watch?v=...), import that video
+        if (results.isEmpty()) {
+            Matcher vidMatcher = YT_VIDEO_PATTERN.matcher(url);
+            if (vidMatcher.find()) {
+                String videoId = vidMatcher.group(1);
+                RawTrackItem single = fetchSingleYoutubeTrack(videoId);
+                if (single != null) results.add(single);
+            }
+        }
+
         return results;
     }
 
@@ -636,25 +656,25 @@ public class QuizMusicManagerService {
 
     private List<RawTrackItem> fetchSpotifyPlaylistTracks(String url) throws Exception {
         List<RawTrackItem> results = new ArrayList<>();
+        Set<String> seenUris = new HashSet<>();
 
-        if (url.contains("/playlist/")) {
-            Matcher m = SPOTIFY_PLAYLIST_PATTERN.matcher(url);
-            if (!m.find()) {
-                throw new IllegalArgumentException("Không tìm thấy Playlist ID trong đường dẫn Spotify");
-            }
-            String playlistId = m.group(1);
-            String embedUrl = "https://open.spotify.com/embed/playlist/" + playlistId;
+        Matcher m = SPOTIFY_PLAYLIST_PATTERN.matcher(url);
+        if (m.find()) {
+            String type = url.contains("album") ? "album" : "playlist";
+            String entityId = m.group(1);
+            String embedUrl = "https://open.spotify.com/embed/" + type + "/" + entityId;
 
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(embedUrl))
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .timeout(Duration.ofSeconds(10))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("Accept-Language", "vi,en-US;q=0.9,en;q=0.8")
+                    .timeout(Duration.ofSeconds(12))
                     .GET()
                     .build();
 
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() != 200 || resp.body() == null) {
-                throw new IllegalStateException("Không thể tải Spotify Playlist (HTTP " + resp.statusCode() + "). Vui lòng đảm bảo playlist tồn tại và ở chế độ công khai.");
+                throw new IllegalStateException("Không thể tải Spotify (HTTP " + resp.statusCode() + "). Vui lòng đảm bảo playlist/album tồn tại và ở chế độ công khai.");
             }
 
             String body = resp.body();
@@ -663,24 +683,33 @@ public class QuizMusicManagerService {
             if (ndm.find()) {
                 try {
                     JsonNode root = objectMapper.readTree(ndm.group(1));
-                    JsonNode trackList = root.path("props").path("pageProps").path("state").path("data").path("entity").path("trackList");
-                    if (trackList.isArray()) {
-                        for (JsonNode item : trackList) {
-                            String title = item.path("title").asText("").trim();
-                            String artist = item.path("subtitle").asText("Spotify Artist").trim();
-                            String previewUrl = item.path("audioPreview").path("url").asText(null);
-                            String uri = item.path("uri").asText("");
-                            String spotifyUrl = uri.startsWith("spotify:track:") ? "https://open.spotify.com/track/" + uri.substring("spotify:track:".length()) : "";
-
-                            if (!title.isEmpty()) {
-                                results.add(new RawTrackItem(title, artist, null, spotifyUrl, null, previewUrl));
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
+                    extractSpotifyTracksFromJson(root, results, seenUris);
+                } catch (Exception e) {
+                    System.err.println("Error parsing Spotify embed JSON: " + e.getMessage());
+                }
             }
-        } else if (url.contains("/track/")) {
-            String oembedUrl = "https://open.spotify.com/oembed?url=" + URLEncoder.encode(url, StandardCharsets.UTF_8);
+
+            // Fallback: Regex scan HTML for tracks if JSON extraction was empty
+            if (results.isEmpty()) {
+                Pattern fallbackPattern = Pattern.compile("\"uri\":\"spotify:track:([a-zA-Z0-9]+)\"[^}]*?\"title\":\"([^\"]+)\"[^}]*?\"subtitle\":\"([^\"]+)\"");
+                Matcher fm = fallbackPattern.matcher(body);
+                while (fm.find()) {
+                    String trackId = fm.group(1);
+                    String title = fm.group(2).trim();
+                    String artist = fm.group(3).trim();
+                    String trackUri = "spotify:track:" + trackId;
+                    if (seenUris.add(trackUri)) {
+                        results.add(new RawTrackItem(title, artist, null, "https://open.spotify.com/track/" + trackId, null, null));
+                    }
+                }
+            }
+        } else if (url.contains("/track/") || url.contains("spotify:track:")) {
+            Matcher tm = Pattern.compile("track[:/]([a-zA-Z0-9]+)").matcher(url);
+            String trackUrl = url;
+            if (tm.find()) {
+                trackUrl = "https://open.spotify.com/track/" + tm.group(1);
+            }
+            String oembedUrl = "https://open.spotify.com/oembed?url=" + URLEncoder.encode(trackUrl, StandardCharsets.UTF_8);
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(6)).GET().build();
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 200 && resp.body() != null) {
@@ -690,11 +719,44 @@ public class QuizMusicManagerService {
                 String[] parts = title.split(" - song and lyrics by | by | - ");
                 String songTitle = parts.length > 0 ? parts[0].trim() : title;
                 String songArtist = parts.length > 1 ? parts[1].trim() : "Spotify Artist";
-                results.add(new RawTrackItem(songTitle, songArtist, null, url, thumbnail, null));
+                results.add(new RawTrackItem(songTitle, songArtist, null, trackUrl, thumbnail, null));
             }
+        } else {
+            throw new IllegalArgumentException("Không tìm thấy Playlist, Album hoặc Track ID trong liên kết Spotify: " + url);
         }
 
         return results;
+    }
+
+    private void extractSpotifyTracksFromJson(JsonNode node, List<RawTrackItem> results, Set<String> seenUris) {
+        if (node == null || node.isMissingNode()) return;
+        if (node.isObject()) {
+            String uri = node.path("uri").asText("");
+            String title = node.path("title").asText(node.path("name").asText("")).trim();
+            if (uri.startsWith("spotify:track:") && !title.isEmpty() && seenUris.add(uri)) {
+                String artist = node.path("subtitle").asText("");
+                if (artist.isBlank() && node.has("artists") && node.path("artists").isArray()) {
+                    List<String> artNames = new ArrayList<>();
+                    for (JsonNode a : node.path("artists")) {
+                        String an = a.path("name").asText("");
+                        if (!an.isBlank()) artNames.add(an);
+                    }
+                    artist = String.join(", ", artNames);
+                }
+                if (artist.isBlank()) artist = "Spotify Artist";
+                String previewUrl = node.path("audioPreview").path("url").asText(null);
+                if (previewUrl == null || previewUrl.isBlank()) {
+                    previewUrl = node.path("preview_url").asText(null);
+                }
+                String spotifyUrl = "https://open.spotify.com/track/" + uri.substring("spotify:track:".length());
+                results.add(new RawTrackItem(title, artist, null, spotifyUrl, null, previewUrl));
+            }
+            node.fields().forEachRemaining(entry -> extractSpotifyTracksFromJson(entry.getValue(), results, seenUris));
+        } else if (node.isArray()) {
+            for (JsonNode item : node) {
+                extractSpotifyTracksFromJson(item, results, seenUris);
+            }
+        }
     }
 
     // ==========================================

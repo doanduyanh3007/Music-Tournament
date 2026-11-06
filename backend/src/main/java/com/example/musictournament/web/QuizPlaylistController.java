@@ -31,11 +31,11 @@ public class QuizPlaylistController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public QuizPlaylist addPlaylist(@RequestBody Map<String, String> body) {
-        String url = body.get("url");
-        if (url == null || url.trim().isEmpty()) {
+    public QuizPlaylist addPlaylist(@RequestBody(required = false) Map<String, String> body) {
+        if (body == null || body.get("url") == null || body.get("url").trim().isEmpty()) {
             throw new IllegalArgumentException("Đường dẫn playlist (URL) không được để trống");
         }
+        String url = body.get("url").trim();
         String title = body.get("title");
         return musicManagerService.addPlaylist(url, title);
     }

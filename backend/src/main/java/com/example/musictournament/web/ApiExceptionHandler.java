@@ -20,8 +20,16 @@ public class ApiExceptionHandler {
                 .map(e -> e.getField() + ": " + e.getDefaultMessage()).findFirst().orElse("Dữ liệu không hợp lệ.");
         return ResponseEntity.badRequest().body(Map.of("message", message));
     }
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<Map<String,String>> handleBadRequest(RuntimeException ex) {
+        String msg = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Dữ liệu yêu cầu không hợp lệ.";
+        return ResponseEntity.badRequest().body(Map.of("message", msg));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String,String>> generic(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message","Lỗi máy chủ. Hãy kiểm tra log backend."));
+        ex.printStackTrace();
+        String msg = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Lỗi máy chủ (" + ex.getClass().getSimpleName() + ")";
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", msg));
     }
 }
