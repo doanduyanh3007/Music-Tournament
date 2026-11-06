@@ -523,7 +523,7 @@ onUnmounted(() => {
     <div class="arena-top-banner">
       <div class="banner-title">
         <span class="arena-pill">PRO ARENA</span>
-        <h2>⚡ Music Quiz: Dark Anime Arena</h2>
+        <h2>⚡ ミュージック・クイズ</h2>
       </div>
 
       <!-- Main Mode Switch (Solo vs Multiplayer) -->

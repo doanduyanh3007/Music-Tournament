@@ -1547,7 +1547,7 @@ onUnmounted(() => {
     <div class="brand-avatar-box">
       <img src="/logo.png" alt="Music Tournament Logo" class="brand-logo-img">
     </div>
-    <div class="brand-copy"><h1>Music Tournament</h1><p>Giải đấu bài hát · tìm ra quán quân</p></div>
+    <div class="brand-copy"><h1>ミュージック・トーナメント</h1><p>楽曲トーナメント · 王者を決めろ</p></div>
     <div class="top-spacer"></div><span class="top-slogan">Cùng chọn ra bài hát hay nhất! ♪</span>
 
     <!-- Theme Toggle (Dark / Light) -->
@@ -1576,13 +1576,13 @@ onUnmounted(() => {
         <div v-show="!isSidebarCollapsed" class="sidebar-brand-preview">
           <img src="/logo.png" alt="Logo" class="sidebar-logo-img">
           <div class="sidebar-brand-text">
-            <b>Music Arena</b>
-            <small>Championship 2026</small>
+            <b>ミュージック・アリーナ</b>
+            <small>チャンピオンシップ 2026</small>
           </div>
         </div>
 
       </div>
-      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'quiz',icon:'🎮',label:'Music Quiz Arena'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'music-manager',icon:'🎧',label:'Kho nhạc & Playlist'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
+      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'quiz',icon:'🎮',label:'ミュージック・クイズ'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'music-manager',icon:'🎧',label:'Kho nhạc & Playlist'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
         <span>{{ item.icon }}</span><span class="nav-label">{{ item.label }}</span>
       </button>
@@ -1593,7 +1593,7 @@ onUnmounted(() => {
       <div class="page-heading">
         <div>
           <p class="eyebrow">MUSIC TOURNAMENT ENGINE / PRO BRACKETS</p>
-          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='quiz'?'Đấu trường Music Quiz':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='music-manager'?'Kho nhạc & Đồng bộ Playlist':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
+          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='quiz'?'ミュージック・クイズ':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='music-manager'?'Kho nhạc & Đồng bộ Playlist':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
           <p class="muted">Tùy biến nhánh đấu, tải danh sách tốc độ cao và mở/đóng từng vòng bình chọn linh hoạt.</p>
         </div>
         <div class="heading-badges">
