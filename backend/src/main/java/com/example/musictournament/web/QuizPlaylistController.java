@@ -23,6 +23,12 @@ public class QuizPlaylistController {
         return musicManagerService.getPlaylists();
     }
 
+    @GetMapping("/{id}")
+    public QuizPlaylist getPlaylist(@PathVariable Long id) {
+        return musicManagerService.getPlaylistById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy playlist ID: " + id));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public QuizPlaylist addPlaylist(@RequestBody Map<String, String> body) {

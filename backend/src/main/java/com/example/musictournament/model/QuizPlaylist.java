@@ -23,6 +23,21 @@ public class QuizPlaylist {
     @Column(nullable = false)
     private Integer itemCount = 0;
 
+    @Column(nullable = false)
+    private Integer totalFound = 0;
+
+    @Column(nullable = false)
+    private Integer addedCount = 0;
+
+    @Column(nullable = false)
+    private Integer duplicateCount = 0;
+
+    @Column(nullable = false)
+    private Integer errorCount = 0;
+
+    @Column(nullable = false)
+    private Integer processedCount = 0;
+
     @Column(nullable = false, length = 50)
     private String syncStatus = "IDLE"; // "IDLE", "SYNCING", "COMPLETED", "ERROR"
 
@@ -61,6 +76,21 @@ public class QuizPlaylist {
 
     public Integer getItemCount() { return itemCount; }
     public void setItemCount(Integer itemCount) { this.itemCount = itemCount; }
+
+    public Integer getTotalFound() { return totalFound != null ? totalFound : 0; }
+    public void setTotalFound(Integer totalFound) { this.totalFound = totalFound; }
+
+    public Integer getAddedCount() { return addedCount != null ? addedCount : 0; }
+    public void setAddedCount(Integer addedCount) { this.addedCount = addedCount; }
+
+    public Integer getDuplicateCount() { return duplicateCount != null ? duplicateCount : 0; }
+    public void setDuplicateCount(Integer duplicateCount) { this.duplicateCount = duplicateCount; }
+
+    public Integer getErrorCount() { return errorCount != null ? errorCount : 0; }
+    public void setErrorCount(Integer errorCount) { this.errorCount = errorCount; }
+
+    public Integer getProcessedCount() { return processedCount != null ? processedCount : 0; }
+    public void setProcessedCount(Integer processedCount) { this.processedCount = processedCount; }
 
     public String getSyncStatus() { return syncStatus; }
     public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }

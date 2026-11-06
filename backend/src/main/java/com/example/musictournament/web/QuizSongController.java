@@ -101,4 +101,32 @@ public class QuizSongController {
     public Map<String, Object> importFromTournaments() {
         return musicManagerService.importSongsFromTournaments();
     }
+
+    @PostMapping("/batch")
+    public Map<String, Object> batchImport(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> songs = (List<Map<String, Object>>) body.get("songs");
+        if (songs == null || songs.isEmpty()) {
+            return Map.of("totalSubmitted", 0, "addedCount", 0, "duplicateCount", 0, "errorCount", 0, "poolLinkedCount", 0);
+        }
+
+        Long quizPoolId = null;
+        if (body.get("quizPoolId") != null) {
+            quizPoolId = Long.valueOf(body.get("quizPoolId").toString());
+        }
+
+        boolean addToQuizLibrary = body.get("addToQuizLibrary") == null || Boolean.parseBoolean(body.get("addToQuizLibrary").toString());
+        boolean enrichMetadata = body.get("enrichMetadata") == null || Boolean.parseBoolean(body.get("enrichMetadata").toString());
+
+        return musicManagerService.batchImportSongs(songs, quizPoolId, addToQuizLibrary, enrichMetadata);
+    }
+
+    @GetMapping("/enrich")
+    public Map<String, Object> enrichMetadata(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String artist,
+            @RequestParam(required = false) String link
+    ) {
+        return musicManagerService.enrichMetadata(title, artist, link);
+    }
 }

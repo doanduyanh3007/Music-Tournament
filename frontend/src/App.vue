@@ -1058,6 +1058,18 @@ function addAllSearchResults() {
   flash('Đã thêm ' + added + ' bài mới; bỏ qua các bài trùng.')
 }
 
+function handleSongsAddedToTournament(songs) {
+  if (!songs || !songs.length) return
+  const current = inputSongs.value
+  const newItems = songs.map(s => ({
+    title: s.title,
+    artist: s.artist,
+    link: s.youtubeUrl || s.spotifyUrl || s.link || ''
+  }))
+  const { unique } = uniqueSongs([...current, ...newItems])
+  songText.value = unique.map(formatSong).join('\n')
+}
+
 function playSongFromSearch(item) {
   if (!item) return
   if (previewAudio) {
@@ -2560,7 +2572,7 @@ onUnmounted(() => {
 
       <!-- PAGE: MUSIC MANAGER -->
       <section v-else-if="page==='music-manager'" class="panel music-manager-panel">
-        <MusicManager :is-admin="isAdmin" />
+        <MusicManager :is-admin="isAdmin" @add-to-tournament="handleSongsAddedToTournament" />
       </section>
 
       <section v-else-if="page==='results'" class="panel">

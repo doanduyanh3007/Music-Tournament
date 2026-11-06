@@ -1,9 +1,13 @@
 package com.example.musictournament.service;
 
 import com.example.musictournament.model.QuizPlaylist;
+import com.example.musictournament.model.QuizPool;
+import com.example.musictournament.model.QuizPoolSong;
 import com.example.musictournament.model.QuizSong;
 import com.example.musictournament.model.Song;
 import com.example.musictournament.repo.QuizPlaylistRepository;
+import com.example.musictournament.repo.QuizPoolRepository;
+import com.example.musictournament.repo.QuizPoolSongRepository;
 import com.example.musictournament.repo.QuizSongRepository;
 import com.example.musictournament.repo.SongRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -33,6 +37,8 @@ public class QuizMusicManagerService {
 
     private final QuizSongRepository quizSongRepository;
     private final QuizPlaylistRepository quizPlaylistRepository;
+    private final QuizPoolRepository quizPoolRepository;
+    private final QuizPoolSongRepository quizPoolSongRepository;
     private final SongRepository tournamentSongRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,14 +51,19 @@ public class QuizMusicManagerService {
     private static final Pattern YT_VIDEO_PATTERN = Pattern.compile(
             "(?:https?://)?(?:www\\.|m\\.)?(?:youtube\\.com/(?:watch\\?v=|embed/|v/|shorts/)|youtu\\.be/)([a-zA-Z0-9_-]{11})"
     );
+    private static final Pattern SPOTIFY_PLAYLIST_PATTERN = Pattern.compile("playlist/([a-zA-Z0-9]+)");
 
     public QuizMusicManagerService(
             QuizSongRepository quizSongRepository,
             QuizPlaylistRepository quizPlaylistRepository,
+            QuizPoolRepository quizPoolRepository,
+            QuizPoolSongRepository quizPoolSongRepository,
             SongRepository tournamentSongRepository
     ) {
         this.quizSongRepository = quizSongRepository;
         this.quizPlaylistRepository = quizPlaylistRepository;
+        this.quizPoolRepository = quizPoolRepository;
+        this.quizPoolSongRepository = quizPoolSongRepository;
         this.tournamentSongRepository = tournamentSongRepository;
     }
 
@@ -96,6 +107,7 @@ public class QuizMusicManagerService {
                 if (song.getArtworkUrl() != null && !song.getArtworkUrl().isBlank()) found.setArtworkUrl(song.getArtworkUrl());
                 if (song.getPreviewUrl() != null && !song.getPreviewUrl().isBlank()) found.setPreviewUrl(song.getPreviewUrl());
                 if (song.getYoutubeUrl() != null && !song.getYoutubeUrl().isBlank()) found.setYoutubeUrl(song.getYoutubeUrl());
+                if (song.getSpotifyUrl() != null && !song.getSpotifyUrl().isBlank()) found.setSpotifyUrl(song.getSpotifyUrl());
                 if (song.getGenre() != null && !song.getGenre().isBlank()) found.setGenre(song.getGenre());
                 if (song.getAliases() != null && !song.getAliases().isBlank()) found.setAliases(song.getAliases());
                 if (Boolean.TRUE.equals(song.getDifficultyManuallySet())) {
@@ -132,6 +144,157 @@ public class QuizMusicManagerService {
             quizSongRepository.save(s);
             return s.getActive() ? 1 : 0;
         }).orElse(-1);
+    }
+
+    // ==========================================
+    // BATCH IMPORT & ENRICHMENT
+    // ==========================================
+
+    @Transactional
+    public Map<String, Object> batchImportSongs(
+            List<Map<String, Object>> songList,
+            Long quizPoolId,
+            boolean addToQuizLibrary,
+            boolean enrichMetadata
+    ) {
+        int added = 0;
+        int duplicates = 0;
+        int errors = 0;
+        int poolLinked = 0;
+
+        for (Map<String, Object> raw : songList) {
+            try {
+                String rawTitle = (String) raw.get("title");
+                if (rawTitle == null || rawTitle.trim().isEmpty()) continue;
+                String title = cleanSongTitle(rawTitle);
+
+                String rawArtist = (String) raw.get("artist");
+                String artist = (rawArtist == null || rawArtist.trim().isEmpty()) ? "Unknown Artist" : rawArtist.trim();
+
+                String link = (String) raw.get("link");
+                String ytUrl = (String) raw.get("youtubeUrl");
+                String spUrl = (String) raw.get("spotifyUrl");
+                if (ytUrl == null && link != null && (link.contains("youtube.com") || link.contains("youtu.be"))) {
+                    ytUrl = link;
+                }
+                if (spUrl == null && link != null && link.contains("spotify.com")) {
+                    spUrl = link;
+                }
+
+                String artwork = (String) raw.get("artworkUrl");
+                if (artwork == null) artwork = (String) raw.get("artwork");
+                String preview = (String) raw.get("previewUrl");
+                String genre = (String) raw.get("genre");
+                if (genre == null || genre.isBlank()) genre = "General";
+
+                QuizSong finalSong;
+                Optional<QuizSong> exists = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(title, artist);
+                if (exists.isPresent()) {
+                    duplicates++;
+                    finalSong = exists.get();
+                    boolean updated = false;
+                    if (artwork != null && !artwork.isBlank() && (finalSong.getArtworkUrl() == null || finalSong.getArtworkUrl().isBlank())) {
+                        finalSong.setArtworkUrl(artwork);
+                        updated = true;
+                    }
+                    if (preview != null && !preview.isBlank() && (finalSong.getPreviewUrl() == null || finalSong.getPreviewUrl().isBlank())) {
+                        finalSong.setPreviewUrl(preview);
+                        updated = true;
+                    }
+                    if (ytUrl != null && !ytUrl.isBlank() && (finalSong.getYoutubeUrl() == null || finalSong.getYoutubeUrl().isBlank())) {
+                        finalSong.setYoutubeUrl(ytUrl);
+                        updated = true;
+                    }
+                    if (spUrl != null && !spUrl.isBlank() && (finalSong.getSpotifyUrl() == null || finalSong.getSpotifyUrl().isBlank())) {
+                        finalSong.setSpotifyUrl(spUrl);
+                        updated = true;
+                    }
+                    if (updated) {
+                        finalSong = quizSongRepository.save(finalSong);
+                    }
+                } else if (addToQuizLibrary) {
+                    QuizSong newSong = new QuizSong();
+                    newSong.setTitle(title);
+                    newSong.setArtist(artist);
+                    newSong.setArtworkUrl(artwork);
+                    newSong.setPreviewUrl(preview);
+                    newSong.setYoutubeUrl(ytUrl);
+                    newSong.setSpotifyUrl(spUrl);
+                    newSong.setGenre(genre);
+                    newSong.setDifficulty(estimateDifficulty(title, artist, genre));
+                    newSong.setDifficultyManuallySet(false);
+                    newSong.setActive(true);
+
+                    if (enrichMetadata && ((newSong.getPreviewUrl() == null || newSong.getPreviewUrl().isBlank()) ||
+                                           (newSong.getArtworkUrl() == null || newSong.getArtworkUrl().isBlank()))) {
+                        enrichWithItunesData(newSong);
+                    }
+                    finalSong = quizSongRepository.save(newSong);
+                    added++;
+                } else {
+                    finalSong = null;
+                }
+
+                // If pool is specified, associate song with that pool
+                if (quizPoolId != null && finalSong != null && finalSong.getId() != null) {
+                    Optional<QuizPoolSong> poolSongExists = quizPoolSongRepository.findByPoolIdAndSongId(quizPoolId, finalSong.getId());
+                    if (poolSongExists.isEmpty()) {
+                        quizPoolSongRepository.save(new QuizPoolSong(quizPoolId, finalSong.getId()));
+                        poolLinked++;
+                    }
+                }
+            } catch (Exception e) {
+                errors++;
+            }
+        }
+
+        return Map.of(
+                "totalSubmitted", songList.size(),
+                "addedCount", added,
+                "duplicateCount", duplicates,
+                "errorCount", errors,
+                "poolLinkedCount", poolLinked
+        );
+    }
+
+    public Map<String, Object> enrichMetadata(String title, String artist, String link) {
+        String queryTitle = title != null ? title.trim() : "";
+        String queryArtist = artist != null ? artist.trim() : "";
+
+        if (queryTitle.isEmpty() && link != null && !link.isBlank()) {
+            Matcher m = YT_VIDEO_PATTERN.matcher(link);
+            if (m.find()) {
+                String vid = m.group(1);
+                try {
+                    String oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=" + vid + "&format=json";
+                    HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(4)).GET().build();
+                    HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() == 200 && resp.body() != null) {
+                        JsonNode json = objectMapper.readTree(resp.body());
+                        String[] parsed = parseTitleAndArtist(json.path("title").asText(""));
+                        queryTitle = parsed[0];
+                        queryArtist = !parsed[1].equals("Unknown Artist") ? parsed[1] : json.path("author_name").asText("");
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        QuizSong dummy = new QuizSong();
+        dummy.setTitle(queryTitle);
+        dummy.setArtist(queryArtist);
+        dummy.setGenre("General");
+        enrichWithItunesData(dummy);
+
+        int diff = estimateDifficulty(queryTitle, queryArtist, dummy.getGenre());
+
+        Map<String, Object> out = new HashMap<>();
+        out.put("title", queryTitle);
+        out.put("artist", queryArtist);
+        out.put("artworkUrl", dummy.getArtworkUrl() != null ? dummy.getArtworkUrl() : "");
+        out.put("previewUrl", dummy.getPreviewUrl() != null ? dummy.getPreviewUrl() : "");
+        out.put("genre", dummy.getGenre() != null ? dummy.getGenre() : "General");
+        out.put("difficulty", diff);
+        return out;
     }
 
     // ==========================================
@@ -184,6 +347,10 @@ public class QuizMusicManagerService {
         return quizPlaylistRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    public Optional<QuizPlaylist> getPlaylistById(Long id) {
+        return quizPlaylistRepository.findById(id);
+    }
+
     @Transactional
     public QuizPlaylist addPlaylist(String url, String customTitle) {
         String trimmedUrl = url.trim();
@@ -203,8 +370,7 @@ public class QuizMusicManagerService {
         CompletableFuture.runAsync(() -> {
             try {
                 syncPlaylist(playlistId);
-            } catch (Exception e) {
-                // logged in syncPlaylist
+            } catch (Exception ignored) {
             }
         });
     }
@@ -217,26 +383,104 @@ public class QuizMusicManagerService {
 
         playlist.setSyncStatus("SYNCING");
         playlist.setLastErrorMessage(null);
-        quizPlaylistRepository.save(playlist);
+        playlist.setProcessedCount(0);
+        playlist.setAddedCount(0);
+        playlist.setDuplicateCount(0);
+        playlist.setErrorCount(0);
+        quizPlaylistRepository.saveAndFlush(playlist);
 
-        int addedCount = 0;
+        List<RawTrackItem> tracks;
         try {
             if ("youtube".equalsIgnoreCase(playlist.getSource())) {
-                addedCount = syncYoutubePlaylist(playlist.getSourceUrl());
+                tracks = fetchYoutubePlaylistTracks(playlist.getSourceUrl());
             } else if ("spotify".equalsIgnoreCase(playlist.getSource())) {
-                addedCount = syncSpotifyPlaylist(playlist.getSourceUrl());
+                tracks = fetchSpotifyPlaylistTracks(playlist.getSourceUrl());
             } else {
                 throw new UnsupportedOperationException("Chưa hỗ trợ nguồn playlist: " + playlist.getSource());
+            }
+
+            if (tracks.isEmpty()) {
+                throw new IllegalStateException("Không tìm thấy bài hát nào trong playlist hoặc playlist ở chế độ riêng tư (Private). Vui lòng đặt thành Công khai (Public/Unlisted).");
+            }
+
+            playlist.setTotalFound(tracks.size());
+            quizPlaylistRepository.saveAndFlush(playlist);
+
+            int addedCount = 0;
+            int duplicateCount = 0;
+            int errorCount = 0;
+
+            for (int i = 0; i < tracks.size(); i++) {
+                RawTrackItem item = tracks.get(i);
+                try {
+                    String title = cleanSongTitle(item.title);
+                    String artist = item.artist != null && !item.artist.isBlank() ? item.artist.trim() : "Unknown Artist";
+
+                    Optional<QuizSong> exists = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(title, artist);
+                    if (exists.isPresent()) {
+                        QuizSong found = exists.get();
+                        boolean updated = false;
+                        if ((found.getYoutubeUrl() == null || found.getYoutubeUrl().isBlank()) && item.youtubeUrl != null) {
+                            found.setYoutubeUrl(item.youtubeUrl);
+                            updated = true;
+                        }
+                        if ((found.getSpotifyUrl() == null || found.getSpotifyUrl().isBlank()) && item.spotifyUrl != null) {
+                            found.setSpotifyUrl(item.spotifyUrl);
+                            updated = true;
+                        }
+                        if ((found.getPreviewUrl() == null || found.getPreviewUrl().isBlank()) && item.previewUrl != null && !item.previewUrl.isBlank()) {
+                            found.setPreviewUrl(item.previewUrl);
+                            updated = true;
+                        }
+                        if ((found.getArtworkUrl() == null || found.getArtworkUrl().isBlank()) && item.artworkUrl != null) {
+                            found.setArtworkUrl(item.artworkUrl);
+                            updated = true;
+                        }
+                        if (updated) quizSongRepository.save(found);
+                        duplicateCount++;
+                    } else {
+                        QuizSong song = new QuizSong();
+                        song.setTitle(title);
+                        song.setArtist(artist);
+                        song.setYoutubeUrl(item.youtubeUrl);
+                        song.setSpotifyUrl(item.spotifyUrl);
+                        song.setArtworkUrl(item.artworkUrl);
+                        song.setPreviewUrl(item.previewUrl);
+                        song.setGenre(item.genre != null ? item.genre : "Pop");
+                        song.setDifficulty(estimateDifficulty(title, artist, song.getGenre()));
+                        song.setDifficultyManuallySet(false);
+                        song.setActive(true);
+
+                        if (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank()) {
+                            enrichWithItunesData(song);
+                        }
+
+                        quizSongRepository.save(song);
+                        addedCount++;
+                    }
+                } catch (Exception ex) {
+                    errorCount++;
+                }
+
+                if ((i + 1) % 10 == 0 || i == tracks.size() - 1) {
+                    playlist.setProcessedCount(i + 1);
+                    playlist.setAddedCount(addedCount);
+                    playlist.setDuplicateCount(duplicateCount);
+                    playlist.setErrorCount(errorCount);
+                    quizPlaylistRepository.saveAndFlush(playlist);
+                }
             }
 
             playlist.setItemCount(playlist.getItemCount() + addedCount);
             playlist.setSyncStatus("COMPLETED");
             playlist.setLastSyncAt(LocalDateTime.now());
-            quizPlaylistRepository.save(playlist);
+            playlist.setLastErrorMessage(null);
+            quizPlaylistRepository.saveAndFlush(playlist);
+
         } catch (Exception e) {
             playlist.setSyncStatus("ERROR");
             playlist.setLastErrorMessage(e.getMessage() != null ? e.getMessage() : e.toString());
-            quizPlaylistRepository.save(playlist);
+            quizPlaylistRepository.saveAndFlush(playlist);
         }
     }
 
@@ -246,80 +490,125 @@ public class QuizMusicManagerService {
     }
 
     // ==========================================
-    // SYNC LOGIC (YOUTUBE / SPOTIFY)
+    // SCRAPING LOGIC (YOUTUBE / SPOTIFY)
     // ==========================================
 
-    private int syncYoutubePlaylist(String url) throws Exception {
+    private List<RawTrackItem> fetchYoutubePlaylistTracks(String url) throws Exception {
+        List<RawTrackItem> results = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+
         Matcher plMatcher = YT_PLAYLIST_PATTERN.matcher(url);
         String playlistId = null;
         if (plMatcher.find()) {
             playlistId = plMatcher.group(1);
         } else {
-            // Single video fallback
+            // Check single video
             Matcher vidMatcher = YT_VIDEO_PATTERN.matcher(url);
             if (vidMatcher.find()) {
                 String videoId = vidMatcher.group(1);
-                return processSingleYoutubeTrack(videoId);
+                RawTrackItem single = fetchSingleYoutubeTrack(videoId);
+                if (single != null) results.add(single);
+                return results;
             }
             throw new IllegalArgumentException("Không tìm thấy Playlist ID (list=...) hoặc Video ID trong đường dẫn YouTube");
         }
 
-        // Fetch YouTube Playlist RSS feed (public, no API key needed, high reliability)
-        String rssUrl = "https://www.youtube.com/feeds/videos.xml?playlist_id=" + playlistId;
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(rssUrl))
-                .header("User-Agent", "Mozilla/5.0")
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build();
+        // Method 1: Fetch full YouTube playlist HTML page (extracts up to 100 videos)
+        try {
+            String playlistUrl = "https://www.youtube.com/playlist?list=" + playlistId;
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(playlistUrl))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
 
-        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() != 200 || resp.body() == null) {
-            throw new IllegalStateException("Không thể tải thông tin Playlist từ YouTube (HTTP " + resp.statusCode() + "). Vui lòng đảm bảo playlist ở chế độ Công khai (Public/Unlisted).");
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null) {
+                String html = resp.body();
+
+                // Pattern A: lockupMetadataViewModel format
+                Pattern pA = Pattern.compile("\"animationActivationTargetId\":\"([a-zA-Z0-9_-]{11})\".*?\"lockupMetadataViewModel\":\\{\"title\":\\{\"content\":\"([^\"]+)\"\\}");
+                Matcher mA = pA.matcher(html);
+                while (mA.find()) {
+                    String vid = mA.group(1);
+                    String rawTitle = mA.group(2);
+                    if (seenIds.add(vid)) {
+                        String[] parsed = parseTitleAndArtist(rawTitle);
+                        results.add(new RawTrackItem(
+                                parsed[0],
+                                parsed[1],
+                                "https://www.youtube.com/watch?v=" + vid,
+                                null,
+                                "https://img.youtube.com/vi/" + vid + "/hqdefault.jpg",
+                                null
+                        ));
+                    }
+                }
+
+                // Pattern B: playlistVideoRenderer format (classic / mobile)
+                if (results.isEmpty()) {
+                    Pattern pB = Pattern.compile("\"playlistVideoRenderer\":\\{\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{(?:\"runs\":\\[\\{\"text\":\"([^\"]+)\"\\}|\"simpleText\":\"([^\"]+)\")");
+                    Matcher mB = pB.matcher(html);
+                    while (mB.find()) {
+                        String vid = mB.group(1);
+                        String rawTitle = mB.group(2) != null ? mB.group(2) : mB.group(3);
+                        if (rawTitle != null && seenIds.add(vid)) {
+                            String[] parsed = parseTitleAndArtist(rawTitle);
+                            results.add(new RawTrackItem(
+                                    parsed[0],
+                                    parsed[1],
+                                    "https://www.youtube.com/watch?v=" + vid,
+                                    null,
+                                    "https://img.youtube.com/vi/" + vid + "/hqdefault.jpg",
+                                    null
+                            ));
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // Method 2: If HTML scrape yielded nothing, fallback to RSS XML
+        if (results.isEmpty()) {
+            try {
+                String rssUrl = "https://www.youtube.com/feeds/videos.xml?playlist_id=" + playlistId;
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(rssUrl))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .timeout(Duration.ofSeconds(8))
+                        .GET()
+                        .build();
+
+                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 && resp.body() != null) {
+                    Pattern entryPattern = Pattern.compile("<yt:videoId>(?<vid>[^<]+)</yt:videoId>.*?<title>(?<vtitle>[^<]+)</title>", Pattern.DOTALL);
+                    Matcher m = entryPattern.matcher(resp.body());
+                    while (m.find()) {
+                        String vid = m.group("vid").trim();
+                        String rawTitle = m.group("vtitle").trim();
+                        if (!vid.isEmpty() && !rawTitle.isEmpty() && seenIds.add(vid)) {
+                            String[] parsed = parseTitleAndArtist(rawTitle);
+                            results.add(new RawTrackItem(
+                                    parsed[0],
+                                    parsed[1],
+                                    "https://www.youtube.com/watch?v=" + vid,
+                                    null,
+                                    "https://img.youtube.com/vi/" + vid + "/hqdefault.jpg",
+                                    null
+                            ));
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
         }
 
-        String body = resp.body();
-        // Parse XML entries: <yt:videoId>...</yt:videoId> and <title>...</title>
-        Pattern entryPattern = Pattern.compile("<yt:videoId>(?<vid>[^<]+)</yt:videoId>.*?<title>(?<vtitle>[^<]+)</title>", Pattern.DOTALL);
-        Matcher m = entryPattern.matcher(body);
-
-        int count = 0;
-        while (m.find()) {
-            String videoId = m.group("vid").trim();
-            String rawTitle = m.group("vtitle").trim();
-            if (rawTitle.isEmpty() || videoId.isEmpty()) continue;
-
-            String[] parsed = parseTitleAndArtist(rawTitle);
-            String title = parsed[0];
-            String artist = parsed[1];
-            String ytUrl = "https://www.youtube.com/watch?v=" + videoId;
-
-            Optional<QuizSong> exists = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(title, artist);
-            if (exists.isPresent()) continue;
-
-            QuizSong song = new QuizSong();
-            song.setTitle(title);
-            song.setArtist(artist);
-            song.setYoutubeUrl(ytUrl);
-            song.setArtworkUrl("https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg");
-            song.setGenre("J-Pop / Anime");
-            song.setDifficulty(estimateDifficulty(title, artist, song.getGenre()));
-            song.setDifficultyManuallySet(false);
-            song.setActive(true);
-
-            enrichWithItunesData(song);
-            quizSongRepository.save(song);
-            count++;
-        }
-
-        return count;
+        return results;
     }
 
-    private int processSingleYoutubeTrack(String videoId) {
+    private RawTrackItem fetchSingleYoutubeTrack(String videoId) {
         String ytUrl = "https://www.youtube.com/watch?v=" + videoId;
-        Optional<QuizSong> byYt = quizSongRepository.findFirstByYoutubeUrl(ytUrl);
-        if (byYt.isPresent()) return 0;
-
         try {
             String oembedUrl = "https://www.youtube.com/oembed?url=" + URLEncoder.encode(ytUrl, StandardCharsets.UTF_8) + "&format=json";
             HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(5)).GET().build();
@@ -332,54 +621,80 @@ public class QuizMusicManagerService {
                 String title = parsed[0];
                 String artist = !parsed[1].equals("Unknown Artist") ? parsed[1] : author;
 
-                QuizSong song = new QuizSong();
-                song.setTitle(title);
-                song.setArtist(artist);
-                song.setYoutubeUrl(ytUrl);
-                song.setArtworkUrl("https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg");
-                song.setGenre("General");
-                song.setDifficulty(estimateDifficulty(title, artist, song.getGenre()));
-                song.setActive(true);
-                enrichWithItunesData(song);
-                quizSongRepository.save(song);
-                return 1;
+                return new RawTrackItem(
+                        title,
+                        artist,
+                        ytUrl,
+                        null,
+                        "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg",
+                        null
+                );
             }
         } catch (Exception ignored) {}
-        return 0;
+        return null;
     }
 
-    private int syncSpotifyPlaylist(String url) throws Exception {
-        // Spotify public playlist oEmbed or HTML open graph metadata
-        String oembedUrl = "https://open.spotify.com/oembed?url=" + URLEncoder.encode(url, StandardCharsets.UTF_8);
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(6)).GET().build();
-        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() == 200 && resp.body() != null) {
-            JsonNode json = objectMapper.readTree(resp.body());
-            String title = json.path("title").asText("Spotify Playlist");
-            String thumbnail = json.path("thumbnail_url").asText("");
-            // Spotify oEmbed gives playlist title & cover. Full playlist tracks via Spotify require an OAuth token;
-            // if single track:
-            if (url.contains("/track/")) {
+    private List<RawTrackItem> fetchSpotifyPlaylistTracks(String url) throws Exception {
+        List<RawTrackItem> results = new ArrayList<>();
+
+        if (url.contains("/playlist/")) {
+            Matcher m = SPOTIFY_PLAYLIST_PATTERN.matcher(url);
+            if (!m.find()) {
+                throw new IllegalArgumentException("Không tìm thấy Playlist ID trong đường dẫn Spotify");
+            }
+            String playlistId = m.group(1);
+            String embedUrl = "https://open.spotify.com/embed/playlist/" + playlistId;
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(embedUrl))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200 || resp.body() == null) {
+                throw new IllegalStateException("Không thể tải Spotify Playlist (HTTP " + resp.statusCode() + "). Vui lòng đảm bảo playlist tồn tại và ở chế độ công khai.");
+            }
+
+            String body = resp.body();
+            Pattern nextDataPattern = Pattern.compile("<script id=\"__NEXT_DATA__\"[^>]*>([\\s\\S]*?)</script>");
+            Matcher ndm = nextDataPattern.matcher(body);
+            if (ndm.find()) {
+                try {
+                    JsonNode root = objectMapper.readTree(ndm.group(1));
+                    JsonNode trackList = root.path("props").path("pageProps").path("state").path("data").path("entity").path("trackList");
+                    if (trackList.isArray()) {
+                        for (JsonNode item : trackList) {
+                            String title = item.path("title").asText("").trim();
+                            String artist = item.path("subtitle").asText("Spotify Artist").trim();
+                            String previewUrl = item.path("audioPreview").path("url").asText(null);
+                            String uri = item.path("uri").asText("");
+                            String spotifyUrl = uri.startsWith("spotify:track:") ? "https://open.spotify.com/track/" + uri.substring("spotify:track:".length()) : "";
+
+                            if (!title.isEmpty()) {
+                                results.add(new RawTrackItem(title, artist, null, spotifyUrl, null, previewUrl));
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        } else if (url.contains("/track/")) {
+            String oembedUrl = "https://open.spotify.com/oembed?url=" + URLEncoder.encode(url, StandardCharsets.UTF_8);
+            HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(6)).GET().build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null) {
+                JsonNode json = objectMapper.readTree(resp.body());
+                String title = json.path("title").asText("Spotify Track");
+                String thumbnail = json.path("thumbnail_url").asText(null);
                 String[] parts = title.split(" - song and lyrics by | by | - ");
                 String songTitle = parts.length > 0 ? parts[0].trim() : title;
                 String songArtist = parts.length > 1 ? parts[1].trim() : "Spotify Artist";
-
-                Optional<QuizSong> exists = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(songTitle, songArtist);
-                if (exists.isEmpty()) {
-                    QuizSong song = new QuizSong();
-                    song.setTitle(songTitle);
-                    song.setArtist(songArtist);
-                    song.setSpotifyUrl(url);
-                    song.setArtworkUrl(thumbnail);
-                    song.setDifficulty(estimateDifficulty(songTitle, songArtist, "Pop"));
-                    song.setActive(true);
-                    enrichWithItunesData(song);
-                    quizSongRepository.save(song);
-                    return 1;
-                }
+                results.add(new RawTrackItem(songTitle, songArtist, null, url, thumbnail, null));
             }
         }
-        return 0;
+
+        return results;
     }
 
     // ==========================================
@@ -469,41 +784,58 @@ public class QuizMusicManagerService {
 
         int score = 40; // baseline: Normal
 
-        // Title length complexity
         int length = title.length();
         if (length > 25) {
-            score += 25; // long titles are much harder to memorize exactly
+            score += 25;
         } else if (length > 15) {
             score += 15;
         } else if (length < 6) {
-            score -= 10; // short titles like "Gurenge", "Unravel", "Sparkle" are easier
+            score -= 10;
         }
 
-        // Japanese characters (Kanji / Katakana / Hiragana)
         boolean hasJapanese = title.chars().anyMatch(c ->
                 (c >= 0x3040 && c <= 0x309F) || // Hiragana
                 (c >= 0x30A0 && c <= 0x30FF) || // Katakana
                 (c >= 0x4E00 && c <= 0x9FAF)    // Kanji
         );
         if (hasJapanese) {
-            score += 20; // non-latin characters increase guessing difficulty
+            score += 20;
         }
 
-        // Complex punctuation / parentheses / subtitles
         if (title.contains("(") || title.contains("~") || title.contains(":") || title.contains("-")) {
             score += 10;
         }
 
-        // Genre modifiers
         if (genre != null) {
             String g = genre.toLowerCase();
             if (g.contains("anime") || g.contains("pop")) {
-                score -= 5; // Anime and Pop songs are more mainstream
+                score -= 5;
             } else if (g.contains("classical") || g.contains("jazz") || g.contains("instrumental")) {
                 score += 15;
             }
         }
 
         return Math.max(10, Math.min(95, score));
+    }
+
+    public static class RawTrackItem {
+        public String title;
+        public String artist;
+        public String youtubeUrl;
+        public String spotifyUrl;
+        public String artworkUrl;
+        public String previewUrl;
+        public String genre;
+
+        public RawTrackItem() {}
+
+        public RawTrackItem(String title, String artist, String youtubeUrl, String spotifyUrl, String artworkUrl, String previewUrl) {
+            this.title = title;
+            this.artist = artist;
+            this.youtubeUrl = youtubeUrl;
+            this.spotifyUrl = spotifyUrl;
+            this.artworkUrl = artworkUrl;
+            this.previewUrl = previewUrl;
+        }
     }
 }
