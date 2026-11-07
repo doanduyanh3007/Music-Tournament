@@ -6,7 +6,6 @@ import SongBadge from './SongBadge.vue'
 import VoteSelection from './VoteSelection.vue'
 import ArenaMatchCard from './ArenaMatchCard.vue'
 import MusicManager from './MusicManager.vue'
-import SongAnalysis from './SongAnalysis.vue'
 import MusicQuizArena from './MusicQuizArena.vue'
 import { globalVolume, isMuted, setGlobalVolume, toggleGlobalMute, playTestChime } from './soundManager.js'
 import { selectedVoteSong, isVotingOpen, canChangeVote } from './voteState.js'
@@ -266,30 +265,6 @@ function requireAdmin(actionName, callback) {
     showLoginModal.value = true
   }
 }
-
-const analysisTargetSongId = ref(null)
-function openSongAnalysis(songId) {
-  analysisTargetSongId.value = songId || null
-  page.value = 'song-analysis'
-}
-
-const navItems = computed(() => {
-  const base = [
-    { id: 'home', icon: '⌂', label: 'Tổng quan & Tạo giải' },
-    { id: 'quiz', icon: '🎮', label: 'ミュージック・クイズ' },
-    { id: 'songs', icon: '♫', label: 'Danh sách bài hát' },
-    { id: 'rounds', icon: '♧', label: 'Vòng đấu' },
-    { id: 'leaderboard', icon: '🏆', label: 'Bảng xếp hạng' },
-    { id: 'players', icon: '♟', label: 'BXH người chơi' },
-    { id: 'music-manager', icon: '🎧', label: 'Kho nhạc & Playlist' },
-    { id: 'results', icon: '▥', label: 'Kết quả' },
-    { id: 'settings', icon: '⚙', label: 'Quản trị' }
-  ]
-  if (isAdmin.value) {
-    base.splice(7, 0, { id: 'song-analysis', icon: '🔬', label: 'Phân tích bài hát' })
-  }
-  return base
-})
 
 // ─── Delete Tournament ───
 async function deleteTournament(t, event) {
@@ -1644,7 +1619,7 @@ onUnmounted(() => {
         </div>
 
       </div>
-      <button v-for="item in navItems"
+      <button v-for="item in [{id:'home',icon:'⌂',label:'Tổng quan & Tạo giải'},{id:'quiz',icon:'🎮',label:'ミュージック・クイズ'},{id:'songs',icon:'♫',label:'Danh sách bài hát'},{id:'rounds',icon:'♧',label:'Vòng đấu'},{id:'leaderboard',icon:'🏆',label:'Bảng xếp hạng'},{id:'players',icon:'♟',label:'BXH người chơi'},{id:'music-manager',icon:'🎧',label:'Kho nhạc & Playlist'},{id:'results',icon:'▥',label:'Kết quả'},{id:'settings',icon:'⚙',label:'Quản trị'}]"
         :key="item.id" class="nav-item" :class="{active:page===item.id}" @click="page=item.id" :title="item.label">
         <span>{{ item.icon }}</span><span class="nav-label">{{ item.label }}</span>
       </button>
@@ -1655,7 +1630,7 @@ onUnmounted(() => {
       <div class="page-heading">
         <div>
           <p class="eyebrow">MUSIC TOURNAMENT ENGINE / PRO BRACKETS</p>
-          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='quiz'?'ミュージック・クイズ':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='music-manager'?'Kho nhạc & Đồng bộ Playlist':page==='song-analysis'?'Song Analysis Studio (V1)':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
+          <h2>{{ page==='home'?'Tạo & Quản lý giải đấu':page==='quiz'?'ミュージック・クイズ':page==='songs'?'Danh sách bài hát':page==='rounds'?'Sơ đồ vòng đấu':page==='leaderboard'?'Bảng xếp hạng & Hiệu số vote':page==='music-manager'?'Kho nhạc & Đồng bộ Playlist':page==='results'?'Kết quả giải đấu':page==='players'?'Bảng xếp hạng người chơi':'Quản trị giải đấu' }}</h2>
           <p class="muted">Tùy biến nhánh đấu, tải danh sách tốc độ cao và mở/đóng từng vòng bình chọn linh hoạt.</p>
         </div>
         <div class="heading-badges">
@@ -2622,17 +2597,7 @@ onUnmounted(() => {
 
       <!-- PAGE: MUSIC MANAGER -->
       <section v-else-if="page==='music-manager'" class="panel music-manager-panel">
-        <MusicManager :is-admin="isAdmin" @add-to-tournament="handleSongsAddedToTournament" @analyze-song="openSongAnalysis" />
-      </section>
-
-      <!-- PAGE: SONG ANALYSIS (ADMIN ONLY) -->
-      <section v-else-if="page==='song-analysis'" class="panel song-analysis-page-panel">
-        <SongAnalysis
-          :is-admin="isAdmin"
-          :selected-song-id="analysisTargetSongId"
-          @request-login="requireAdmin('Phân tích bài hát', () => { page = 'song-analysis' })"
-          @close="page = 'home'"
-        />
+        <MusicManager :is-admin="isAdmin" @add-to-tournament="handleSongsAddedToTournament" />
       </section>
 
       <section v-else-if="page==='results'" class="panel">

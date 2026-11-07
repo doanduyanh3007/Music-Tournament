@@ -5,7 +5,7 @@ const props = defineProps({
   isAdmin: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['add-to-tournament', 'analyze-song'])
+const emit = defineEmits(['add-to-tournament'])
 
 // Current active tab: 'quick-search' | 'bulk-import' | 'library' | 'playlists'
 const activeTab = ref('quick-search')
@@ -1461,14 +1461,6 @@ Sparkle – RADWIMPS"
               <span class="slider"></span>
             </label>
 
-            <button 
-              v-if="isAdmin" 
-              class="action-icon-btn analyze-btn" 
-              @click="emit('analyze-song', song.id)" 
-              title="Phân tích chuyên sâu bài hát (Song Analysis)"
-            >
-              🔬
-            </button>
             <button class="action-icon-btn edit-btn" @click="openEditSongModal(song)" title="Chỉnh sửa bài hát">
               ✏️
             </button>
