@@ -143,6 +143,14 @@ public final class JapaneseRomanizer {
                 {"ファタール", "Fatal"},
                 {"サインはB", "Sign wa B"},
                 {"STAR☆T☆RAIN", "STAR☆T☆RAIN"},
+                {"ショータイム", "Showtime"},
+                {"アンサー", "Answer"},
+                {"モンスター", "Monster"},
+                {"ルーザー", "Loser"},
+                {"シンドローム", "Syndrome"},
+                {"ロックスター", "Rockstar"},
+                {"パレード", "Parade"},
+                {"ダンス", "Dance"},
                 {"ぴえヨンブートダンス", "Pieyon Boot Dance"},
                 {"狂乱 Hey Kids!!", "Kyouran Hey Kids!!"},
                 {"青と夏", "Ao to Natsu"},
@@ -324,6 +332,42 @@ public final class JapaneseRomanizer {
         base = base.replaceAll("(?i)(?:[\\s\\(\\[\\{]|^)(?:feat\\.?|ft\\.?|featuring|with)\\s*.*$", "").trim();
         if (base.isEmpty()) base = title.trim();
         return toRomaji(base);
+    }
+
+    /**
+     * Converts Japanese Kana directly to phonetic Hepburn Romaji without English translation.
+     * e.g. "ショータイム" -> ["shootaimu", "shotaimu"]
+     */
+    public static List<String> toPhoneticRomajiVariants(String text) {
+        if (text == null || text.isBlank()) return Collections.emptyList();
+        List<String> list = new ArrayList<>();
+        try {
+            List<Token> tokens = TOKENIZER.tokenize(text);
+            StringBuilder kanaSb = new StringBuilder();
+            for (Token t : tokens) {
+                String r = t.getReading();
+                if (r != null && !r.equals("*") && !r.isBlank()) {
+                    kanaSb.append(r);
+                } else {
+                    kanaSb.append(t.getSurface());
+                }
+            }
+            String rawKana = kanaSb.toString();
+            String doubleVowel = kanaToRomaji(rawKana);
+            if (!doubleVowel.isBlank()) {
+                list.add(doubleVowel);
+                String singleVowel = doubleVowel.replaceAll("([aeiou])\\1+", "$1");
+                if (!singleVowel.equalsIgnoreCase(doubleVowel)) {
+                    list.add(singleVowel);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        String direct = kanaToRomaji(text);
+        if (!direct.isBlank() && !list.contains(direct)) {
+            list.add(direct);
+        }
+        return list;
     }
 
     private static String capitalize(String s) {

@@ -126,5 +126,18 @@ public class QuizAnswerMatcherTest {
 
         QuizAnswerMatcher.MatchResult r5 = matcher.matchAnswer("ao no sumika", "青のすみか", null);
         assertTrue(r5.isCorrect());
+
+        // Katakana loanwords: "ショータイム" accepts BOTH English "showtime" AND Romaji "shōtaimu" / "shotaimu" / "shootaimu"
+        QuizAnswerMatcher.MatchResult rEnglish = matcher.matchAnswer("showtime", "ショータイム", null);
+        assertTrue(rEnglish.isCorrect(), "Expected 'showtime' to match 'ショータイム'");
+
+        QuizAnswerMatcher.MatchResult rRomajiMacron = matcher.matchAnswer("shōtaimu", "ショータイム", null);
+        assertTrue(rRomajiMacron.isCorrect(), "Expected 'shōtaimu' to match 'ショータイム'");
+
+        QuizAnswerMatcher.MatchResult rRomajiSingle = matcher.matchAnswer("shotaimu", "ショータイム", null);
+        assertTrue(rRomajiSingle.isCorrect(), "Expected 'shotaimu' to match 'ショータイム'");
+
+        QuizAnswerMatcher.MatchResult rRomajiDouble = matcher.matchAnswer("shootaimu", "ショータイム", null);
+        assertTrue(rRomajiDouble.isCorrect(), "Expected 'shootaimu' to match 'ショータイム'");
     }
 }

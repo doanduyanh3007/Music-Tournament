@@ -219,6 +219,10 @@ public class QuizAnswerMatcher {
                         candidates.add(romaji.replace(" ", ""));
                         candidates.addAll(generateTargetVariants(romaji));
                     }
+                    for (String phonetic : JapaneseRomanizer.toPhoneticRomajiVariants(v)) {
+                        candidates.add(phonetic);
+                        candidates.add(phonetic.replace(" ", ""));
+                    }
                 }
             }
         }
@@ -237,6 +241,10 @@ public class QuizAnswerMatcher {
                                 candidates.add(romaji);
                                 candidates.add(romaji.replace(" ", ""));
                                 candidates.addAll(generateTargetVariants(romaji));
+                            }
+                            for (String phonetic : JapaneseRomanizer.toPhoneticRomajiVariants(av)) {
+                                candidates.add(phonetic);
+                                candidates.add(phonetic.replace(" ", ""));
                             }
                         }
                     }
