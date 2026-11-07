@@ -113,12 +113,15 @@ function getRomajiTitle(item) {
     const r = item.romajiTitle.trim()
     const orig = (item.officialTitle || item.title || '').trim()
     if (r.toLowerCase() !== orig.toLowerCase()) {
-      return r
+      // Chỉ hiển thị nếu đã được phiên âm sạch (không còn dính chữ Hán Kanji) và độ dài hợp lý
+      if (!/[\u4e00-\u9faf]/.test(r) && r.length < 40) {
+        return r
+      }
     }
   }
   if (item.aliases && hasJapanese(item.officialTitle || item.title)) {
     const parts = item.aliases.split(/[,;|\n]+/).map(p => p.trim()).filter(Boolean)
-    const latin = parts.find(p => !hasJapanese(p))
+    const latin = parts.find(p => !hasJapanese(p) && p.length < 40)
     if (latin) return latin
   }
   return ''
@@ -859,7 +862,7 @@ onUnmounted(() => {
           <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
 
           <p v-if="gameState === 'round_result'" class="revealed-stage-notice">
-            ✨ {{ lastResult?.officialTitle }} <span v-if="getRomajiTitle(lastResult)" class="romaji-stage">({{ getRomajiTitle(lastResult) }})</span> — {{ lastResult?.officialArtist }}
+            ✨ {{ lastResult?.officialTitle }} — {{ lastResult?.officialArtist }}
           </p>
           <p v-else-if="currentQuestion?.isBlind" class="blind-notice">🙈 Chế độ Đoán Mù: Ảnh bìa đã được bảo mật!</p>
         </div>
@@ -1153,7 +1156,7 @@ onUnmounted(() => {
               </div>
               <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
               <p v-if="currentRoom.status === 'ROUND_RESULT'" class="revealed-stage-notice">
-                ✨ {{ currentRoom.officialTitle }} <span v-if="getRomajiTitle(currentRoom)" class="romaji-stage">({{ getRomajiTitle(currentRoom) }})</span> — {{ currentRoom.officialArtist }}
+                ✨ {{ currentRoom.officialTitle }} — {{ currentRoom.officialArtist }}
               </p>
             </div>
 
