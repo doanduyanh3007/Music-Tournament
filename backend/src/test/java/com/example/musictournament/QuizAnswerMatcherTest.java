@@ -30,6 +30,32 @@ public class QuizAnswerMatcherTest {
     }
 
     @Test
+    public void testFeatAndSubtitleVariations() {
+        // "Bad Apple!! feat.SEKAI" should match "bad apple"
+        QuizAnswerMatcher.MatchResult r1 = matcher.matchAnswer("bad apple", "Bad Apple!! feat.SEKAI", null);
+        assertTrue(r1.isCorrect(), "Expected 'bad apple' to match 'Bad Apple!! feat.SEKAI'");
+
+        QuizAnswerMatcher.MatchResult r2 = matcher.matchAnswer("Bad Apple!!", "Bad Apple!! feat.SEKAI", null);
+        assertTrue(r2.isCorrect());
+
+        // 1 typo in bad apple -> should still match base title
+        QuizAnswerMatcher.MatchResult r3 = matcher.matchAnswer("bad aple", "Bad Apple!! feat.SEKAI", null);
+        assertTrue(r3.isCorrect());
+
+        // TV Size and bracket versions
+        QuizAnswerMatcher.MatchResult r4 = matcher.matchAnswer("Shinzou wo Sasageyo", "Shinzou wo Sasageyo! (TV Size)", null);
+        assertTrue(r4.isCorrect());
+
+        // Subtitle after dash
+        QuizAnswerMatcher.MatchResult r5 = matcher.matchAnswer("Aoi Shiori", "Aoi Shiori - Anime Ver.", null);
+        assertTrue(r5.isCorrect());
+
+        // English title in bracket
+        QuizAnswerMatcher.MatchResult r6 = matcher.matchAnswer("Racing Into The Night", "夜に駆ける (Racing Into The Night)", null);
+        assertTrue(r6.isCorrect());
+    }
+
+    @Test
     public void testShortTitleStrictness() {
         // Length <= 4 must NOT match different words
         QuizAnswerMatcher.MatchResult r1 = matcher.matchAnswer("An", "Ai", null);

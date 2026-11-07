@@ -11,7 +11,7 @@ public class QuizAnswerMatcher {
 
     public enum MatchStatus {
         EXACT,    // Đúng hoàn toàn
-        CORRECT,  // Đúng qua fuzzy match / alias
+        CORRECT,  // Đúng qua fuzzy match / alias / base title
         ALMOST,   // Gần đúng rồi! (chưa tính điểm)
         WRONG     // Sai
     }
@@ -40,6 +40,12 @@ public class QuizAnswerMatcher {
     private static final Pattern DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
     private static final Pattern PUNCTUATION_PATTERN = Pattern.compile("[.,/#!$%^&*;:{}=\\-_`~()\"'?!\\[\\]【】（）「」『』〜~+@*]+");
     private static final Pattern MULTI_SPACE_PATTERN = Pattern.compile("\\s+");
+
+    private static final Set<String> COMMON_SUFFIX_KEYWORDS = Set.of(
+            "feat", "ft", "featuring", "with", "tv", "ver", "version", "size",
+            "edit", "cover", "remix", "mix", "ost", "op", "ed", "theme",
+            "live", "acoustic", "instrumental", "off", "vocal", "mv", "pv", "prod"
+    );
 
     /**
      * Chuẩn hóa sâu văn bản đầu vào:
@@ -97,6 +103,96 @@ public class QuizAnswerMatcher {
     }
 
     /**
+     * Tự động trích xuất các biến thể tên cốt lõi từ tiêu đề bài hát hoặc nghệ sĩ:
+     * - Bỏ feat / ft / featuring (ví dụ: "Bad Apple!! feat.SEKAI" -> "Bad Apple!!")
+     * - Bỏ thông tin phụ trong ngoặc: "(TV Size)", "[Cover]", "(Remix)"
+     * - Trích xuất tên phụ hoặc tên tiếng Anh trong ngoặc
+     * - Tách từng nghệ sĩ nếu có dấu phân cách (, ; /)
+     */
+    public Set<String> generateTargetVariants(String target) {
+        Set<String> variants = new LinkedHashSet<>();
+        if (target == null || target.isBlank()) return variants;
+
+        String raw = target.trim();
+        variants.add(raw);
+
+        // 1. Bỏ feat / ft / featuring ở cuối hoặc sau tên bài
+        // Hỗ trợ "Bad Apple!! feat.SEKAI", "Song (feat. Artist)", "Song ft. Artist"
+        String noFeat = raw.replaceAll("(?i)\\s*[\\[\\(]?\\s*(?:feat\\.?|ft\\.?|featuring|with)\\s*[^\\)\\]]+[\\)\\]]?", "").trim();
+        if (!noFeat.isEmpty() && !noFeat.equalsIgnoreCase(raw)) {
+            variants.add(noFeat);
+        }
+        String noFeatTrailing = raw.replaceAll("(?i)(?:[\\s\\(\\[\\{]|^)(?:feat\\.?|ft\\.?|featuring|with)\\s*.*$", "").trim();
+        if (!noFeatTrailing.isEmpty() && !noFeatTrailing.equalsIgnoreCase(raw)) {
+            variants.add(noFeatTrailing);
+        }
+
+        // 2. Bỏ toàn bộ nội dung trong các cặp ngoặc: (), [], 【】, （）, 「」, 『』
+        String noBrackets = raw.replaceAll("[\\[\\(（【「『][^\\]\\)）】」』]*[\\]\\)）】」』]", "").trim();
+        if (!noBrackets.isEmpty() && !noBrackets.equalsIgnoreCase(raw)) {
+            variants.add(noBrackets);
+            String nbNoFeat = noBrackets.replaceAll("(?i)(?:[\\s\\(\\[\\{]|^)(?:feat\\.?|ft\\.?|featuring|with)\\s*.*$", "").trim();
+            if (!nbNoFeat.isEmpty()) {
+                variants.add(nbNoFeat);
+            }
+        }
+
+        // 3. Tách tiêu đề trước dấu gạch ngang " - " hoặc " ~ " hoặc " : "
+        if (raw.contains(" - ") || raw.contains(" ~ ") || raw.contains(" : ")) {
+            String prefix = raw.split("\\s+[-~:]\\s+")[0].trim();
+            if (!prefix.isEmpty() && prefix.length() >= 2) {
+                variants.add(prefix);
+            }
+        }
+
+        // 4. Trích xuất tên thay thế nằm bên trong ngoặc (nếu là tên bài hát song ngữ)
+        // Ví dụ: "夜に駆ける (Racing Into The Night)" -> thêm "Racing Into The Night"
+        var bracketMatcher = Pattern.compile("[\\[\\(（【「『]([^\\]\\)）】」』]+)[\\]\\)）】」』]").matcher(raw);
+        while (bracketMatcher.find()) {
+            String inside = bracketMatcher.group(1).trim();
+            if (inside.length() >= 2 && !inside.matches("(?i)^(tv size|tv ver|full|ost|mv|pv|cover|remix|feat.*|ft.*|instrumental|audio|video|lyrics?)$")) {
+                variants.add(inside);
+            }
+        }
+
+        // 5. Nếu target là nghệ sĩ có nhiều người (phân cách bởi dấu ; , 、 ； /)
+        if (raw.contains(";") || raw.contains(",") || raw.contains("、") || raw.contains("；") || raw.contains("/")) {
+            String[] parts = raw.split("[,;、；/]+");
+            for (String p : parts) {
+                String t = p.trim();
+                // Bỏ (CV:...) nếu có
+                String cleanVoice = t.replaceAll("(?i)\\s*[\\[\\(]cv:[^\\)\\]]+[\\)\\]]", "").trim();
+                if (!cleanVoice.isEmpty()) variants.add(cleanVoice);
+                if (!t.isEmpty()) variants.add(t);
+            }
+        }
+
+        return variants;
+    }
+
+    /**
+     * Kiểm tra xem chuỗi user có phải là base title của candidate khi candidate có đuôi feat/version/remix
+     */
+    private boolean isBaseTitleMatch(String normUser, String normCandidate) {
+        if (normUser.isEmpty() || normCandidate.isEmpty()) return false;
+        if (normCandidate.startsWith(normUser + " ")) {
+            String remainder = normCandidate.substring(normUser.length() + 1).trim();
+            String firstWord = remainder.split("\\s+")[0];
+            if (COMMON_SUFFIX_KEYWORDS.contains(firstWord)) {
+                return true;
+            }
+        }
+        if (normUser.startsWith(normCandidate + " ")) {
+            String remainder = normUser.substring(normCandidate.length() + 1).trim();
+            String firstWord = remainder.split("\\s+")[0];
+            if (COMMON_SUFFIX_KEYWORDS.contains(firstWord)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Chấm câu trả lời của người chơi với mục tiêu (Tên bài hoặc Nghệ sĩ) và các aliases.
      */
     public MatchResult matchAnswer(String userInput, String officialTarget, String rawAliases) {
@@ -109,20 +205,19 @@ public class QuizAnswerMatcher {
             return new MatchResult(MatchStatus.WRONG, 0.0, null, "Đáp án không hợp lệ");
         }
 
-        // Tạo danh sách các target hợp lệ (Official + Aliases)
-        List<String> candidates = new ArrayList<>();
+        // Tạo danh sách các target hợp lệ (Official + Variants tự động trích xuất + Aliases)
+        Set<String> candidates = new LinkedHashSet<>();
         if (officialTarget != null && !officialTarget.isBlank()) {
-            candidates.add(officialTarget.trim());
+            candidates.addAll(generateTargetVariants(officialTarget));
         }
 
         if (rawAliases != null && !rawAliases.isBlank()) {
-            // Hỗ trợ phân cách bằng dấu phẩy, dấu chấm phẩy, dấu gạch đứng hoặc xuống dòng
             String[] parts = rawAliases.split("[,;|\n]+");
             for (String p : parts) {
-                String trimmed = p.trim();
-                // Bỏ ngoặc kép nếu là json format
-                trimmed = trimmed.replaceAll("^[\"']+|[\"']+$", "").trim();
-                if (!trimmed.isEmpty()) candidates.add(trimmed);
+                String trimmed = p.trim().replaceAll("^[\"']+|[\"']+$", "").trim();
+                if (!trimmed.isEmpty()) {
+                    candidates.addAll(generateTargetVariants(trimmed));
+                }
             }
         }
 
@@ -139,7 +234,12 @@ public class QuizAnswerMatcher {
                 return new MatchResult(MatchStatus.EXACT, 1.0, candidate, "Chính xác tuyệt đối!");
             }
 
-            // 2. Kiểm tra fuzzy match với quy tắc khắt khe cho chuỗi ngắn
+            // 2. So khớp Base Title khi có đuôi feat/remix/ver
+            if (isBaseTitleMatch(normUser, normCandidate)) {
+                return new MatchResult(MatchStatus.CORRECT, 0.98, candidate, "Chính xác!");
+            }
+
+            // 3. Kiểm tra fuzzy match với quy tắc khoảng cách
             int userLen = normUser.length();
             int candLen = normCandidate.length();
             int maxLen = Math.max(userLen, candLen);
@@ -152,13 +252,12 @@ public class QuizAnswerMatcher {
                 bestTarget = candidate;
             }
 
-            // QUY TẮC NGHIÊM NGẶT CHO TÊN NGẮN:
+            // QUY TẮC PHÂN LOẠI ĐỘ DÀI:
             // Tên <= 4 ký tự: Bắt buộc exact 100% (không cho phép distance > 0)
             if (candLen <= 4) {
                 if (normUser.equals(normCandidate)) {
                     return new MatchResult(MatchStatus.EXACT, 1.0, candidate, "Chính xác!");
                 }
-                // Nếu chỉ sai 1 ký tự trên từ 3-4 chữ -> Báo "Gần đúng rồi!"
                 if (dist == 1 && candLen >= 3) {
                     hasAlmost = true;
                 }
