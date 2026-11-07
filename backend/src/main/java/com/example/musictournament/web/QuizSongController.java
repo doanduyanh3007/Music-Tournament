@@ -129,4 +129,30 @@ public class QuizSongController {
     ) {
         return musicManagerService.enrichMetadata(title, artist, link);
     }
+
+    @PostMapping("/enrich-all")
+    public QuizMusicManagerService.EnrichmentProgress enrichAllSongs() {
+        return musicManagerService.startBulkEnrichmentAsync();
+    }
+
+    @GetMapping("/enrich-status")
+    public Map<String, Object> getEnrichStatus() {
+        QuizMusicManagerService.EnrichmentProgress progress = musicManagerService.getEnrichmentProgress();
+        long missing = musicManagerService.getMissingPreviewCount();
+        return Map.of(
+                "isRunning", progress.isRunning(),
+                "total", progress.getTotal(),
+                "processed", progress.getProcessed(),
+                "enriched", progress.getEnriched(),
+                "errors", progress.getErrors(),
+                "currentSong", progress.getCurrentSong() != null ? progress.getCurrentSong() : "",
+                "lastMessage", progress.getLastMessage() != null ? progress.getLastMessage() : "",
+                "missingPreviewCount", missing
+        );
+    }
+
+    @PostMapping("/{id}/enrich")
+    public QuizSong enrichSingleSong(@PathVariable Long id) {
+        return musicManagerService.enrichSingleSong(id);
+    }
 }

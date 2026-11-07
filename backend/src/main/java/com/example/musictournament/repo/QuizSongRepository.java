@@ -39,4 +39,10 @@ public interface QuizSongRepository extends JpaRepository<QuizSong, Long> {
 
     @Query(value = "SELECT * FROM quiz_songs WHERE active = true AND difficulty BETWEEN :minDiff AND :maxDiff ORDER BY RANDOM() LIMIT :limit", nativeQuery = true)
     List<QuizSong> findRandomSongsByDifficulty(@Param("minDiff") int minDiff, @Param("maxDiff") int maxDiff, @Param("limit") int limit);
+
+    @Query("SELECT s FROM QuizSong s WHERE s.previewUrl IS NULL OR s.previewUrl = '' OR s.artworkUrl IS NULL OR s.artworkUrl = '' OR s.youtubeUrl IS NULL OR s.youtubeUrl = ''")
+    List<QuizSong> findSongsNeedingEnrichment();
+
+    @Query("SELECT COUNT(s) FROM QuizSong s WHERE s.previewUrl IS NULL OR s.previewUrl = ''")
+    long countSongsMissingPreview();
 }

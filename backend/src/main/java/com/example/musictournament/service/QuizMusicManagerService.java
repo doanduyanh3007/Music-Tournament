@@ -73,6 +73,33 @@ public class QuizMusicManagerService {
         this.tournamentSongRepository = tournamentSongRepository;
     }
 
+    public static class EnrichmentProgress {
+        private boolean isRunning = false;
+        private int total = 0;
+        private int processed = 0;
+        private int enriched = 0;
+        private int errors = 0;
+        private String currentSong = "";
+        private String lastMessage = "";
+
+        public boolean isRunning() { return isRunning; }
+        public void setRunning(boolean running) { isRunning = running; }
+        public int getTotal() { return total; }
+        public void setTotal(int total) { this.total = total; }
+        public int getProcessed() { return processed; }
+        public void setProcessed(int processed) { this.processed = processed; }
+        public int getEnriched() { return enriched; }
+        public void setEnriched(int enriched) { this.enriched = enriched; }
+        public int getErrors() { return errors; }
+        public void setErrors(int errors) { this.errors = errors; }
+        public String getCurrentSong() { return currentSong; }
+        public void setCurrentSong(String currentSong) { this.currentSong = currentSong; }
+        public String getLastMessage() { return lastMessage; }
+        public void setLastMessage(String lastMessage) { this.lastMessage = lastMessage; }
+    }
+
+    private final EnrichmentProgress enrichmentProgress = new EnrichmentProgress();
+
     // ==========================================
     // SONG CRUD & QUERIES
     // ==========================================
@@ -215,6 +242,11 @@ public class QuizMusicManagerService {
                         finalSong.setSpotifyUrl(spUrl);
                         updated = true;
                     }
+                    if (enrichMetadata && ((finalSong.getPreviewUrl() == null || finalSong.getPreviewUrl().isBlank()) ||
+                                           (finalSong.getArtworkUrl() == null || finalSong.getArtworkUrl().isBlank()))) {
+                        boolean enriched = enrichSongMetadata(finalSong);
+                        if (enriched) updated = true;
+                    }
                     if (updated) {
                         finalSong = quizSongRepository.save(finalSong);
                     }
@@ -233,7 +265,7 @@ public class QuizMusicManagerService {
 
                     if (enrichMetadata && ((newSong.getPreviewUrl() == null || newSong.getPreviewUrl().isBlank()) ||
                                            (newSong.getArtworkUrl() == null || newSong.getArtworkUrl().isBlank()))) {
-                        enrichWithItunesData(newSong);
+                        enrichSongMetadata(newSong);
                     }
                     finalSong = quizSongRepository.save(newSong);
                     added++;
@@ -289,7 +321,7 @@ public class QuizMusicManagerService {
         dummy.setTitle(queryTitle);
         dummy.setArtist(queryArtist);
         dummy.setGenre("General");
-        enrichWithItunesData(dummy);
+        enrichSongMetadata(dummy);
 
         int diff = estimateDifficulty(queryTitle, queryArtist, dummy.getGenre());
 
@@ -468,7 +500,7 @@ public class QuizMusicManagerService {
                         song.setActive(true);
 
                         if (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank()) {
-                            enrichWithItunesData(song);
+                            enrichSongMetadata(song);
                         }
 
                         quizSongRepository.save(song);
@@ -857,19 +889,85 @@ public class QuizMusicManagerService {
     }
 
     // ==========================================
-    // ITUNES AUDIO PREVIEW ENRICHMENT & PARSING
+    // MULTI-TIER AUDIO & ARTWORK ENRICHMENT
     // ==========================================
 
-    private void enrichWithItunesData(QuizSong song) {
+    public boolean enrichSongMetadata(QuizSong song) {
+        if (song == null) return false;
+        boolean modified = false;
+
+        String title = song.getTitle() != null ? song.getTitle().trim() : "";
+        String artist = song.getArtist() != null ? song.getArtist().trim() : "";
+        if (title.isEmpty()) return false;
+
+        boolean isJapanese = hasJapaneseCharacters(title) || hasJapaneseCharacters(artist);
+
+        // 1. Try iTunes (supports direct 30s MP3/AAC preview and 600x600 artwork)
+        boolean foundItunes = false;
+        if (isJapanese) {
+            foundItunes = tryItunesEnrich(song, title, artist, "JP");
+            if (!foundItunes) {
+                foundItunes = tryItunesEnrich(song, title, artist, null);
+            }
+        } else {
+            foundItunes = tryItunesEnrich(song, title, artist, null);
+            if (!foundItunes && isVietnamese(title + " " + artist)) {
+                foundItunes = tryItunesEnrich(song, title, artist, "VN");
+            }
+        }
+        if (foundItunes) modified = true;
+
+        // 2. If Spotify URL exists and artwork is still missing, fetch via Spotify oEmbed
+        if ((song.getArtworkUrl() == null || song.getArtworkUrl().isBlank()) &&
+                song.getSpotifyUrl() != null && song.getSpotifyUrl().contains("spotify.com")) {
+            try {
+                String oembedUrl = "https://open.spotify.com/oembed?url=" + URLEncoder.encode(song.getSpotifyUrl(), StandardCharsets.UTF_8);
+                HttpRequest req = HttpRequest.newBuilder().uri(URI.create(oembedUrl)).timeout(Duration.ofSeconds(4)).GET().build();
+                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200 && resp.body() != null) {
+                    JsonNode json = objectMapper.readTree(resp.body());
+                    String thumb = json.path("thumbnail_url").asText(null);
+                    if (thumb != null && !thumb.isBlank()) {
+                        song.setArtworkUrl(thumb);
+                        modified = true;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 3. Fallback: Search YouTube if youtubeUrl is missing or if previewUrl is still missing
+        if ((song.getYoutubeUrl() == null || song.getYoutubeUrl().isBlank()) ||
+                (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank())) {
+            String ytVid = searchFirstYoutubeVideoId(title + " " + (!artist.equalsIgnoreCase("Unknown Artist") ? artist : "") + " audio");
+            if (ytVid != null) {
+                if (song.getYoutubeUrl() == null || song.getYoutubeUrl().isBlank()) {
+                    song.setYoutubeUrl("https://www.youtube.com/watch?v=" + ytVid);
+                    modified = true;
+                }
+                if (song.getArtworkUrl() == null || song.getArtworkUrl().isBlank()) {
+                    song.setArtworkUrl("https://img.youtube.com/vi/" + ytVid + "/hqdefault.jpg");
+                    modified = true;
+                }
+            }
+        }
+
+        return modified;
+    }
+
+    private boolean tryItunesEnrich(QuizSong song, String title, String artist, String country) {
         try {
-            String query = song.getTitle() + " " + song.getArtist();
+            String cleanTitle = cleanSongTitle(title);
+            String query = (artist != null && !artist.isBlank() && !artist.equalsIgnoreCase("Unknown Artist"))
+                    ? (artist + " " + cleanTitle)
+                    : cleanTitle;
             String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
-            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&media=music&entity=song&limit=1";
+            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&media=music&entity=song&limit=1"
+                    + (country != null ? "&country=" + country : "");
 
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(itunesUrl))
-                    .timeout(Duration.ofSeconds(3))
-                    .header("User-Agent", "Mozilla/5.0")
+                    .timeout(Duration.ofSeconds(5))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                     .GET()
                     .build();
 
@@ -879,23 +977,136 @@ public class QuizMusicManagerService {
                 JsonNode results = root.path("results");
                 if (results.isArray() && results.size() > 0) {
                     JsonNode item = results.get(0);
-                    if (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank()) {
-                        String preview = item.path("previewUrl").asText("");
-                        if (!preview.isBlank()) song.setPreviewUrl(preview);
+                    boolean updated = false;
+
+                    String preview = item.path("previewUrl").asText("");
+                    if (!preview.isBlank() && (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank())) {
+                        song.setPreviewUrl(preview);
+                        updated = true;
                     }
-                    if (song.getArtworkUrl() == null || song.getArtworkUrl().isBlank()) {
-                        String art = item.path("artworkUrl100").asText("");
-                        if (!art.isBlank()) song.setArtworkUrl(art.replace("100x100bb.jpg", "600x600bb.jpg"));
+
+                    String art = item.path("artworkUrl100").asText("");
+                    if (!art.isBlank() && (song.getArtworkUrl() == null || song.getArtworkUrl().isBlank())) {
+                        song.setArtworkUrl(art.replace("100x100bb.jpg", "600x600bb.jpg"));
+                        updated = true;
                     }
-                    if ("General".equalsIgnoreCase(song.getGenre())) {
+
+                    if (song.getGenre() == null || song.getGenre().isBlank() || "General".equalsIgnoreCase(song.getGenre())) {
                         String genre = item.path("primaryGenreName").asText("");
-                        if (!genre.isBlank()) song.setGenre(genre);
+                        if (!genre.isBlank()) {
+                            song.setGenre(genre);
+                            updated = true;
+                        }
                     }
+                    return updated;
                 }
             }
-        } catch (Exception ignored) {
-            // Non-critical: failure simply leaves previewUrl empty or relies on YouTube
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    public static boolean hasJapaneseCharacters(String text) {
+        if (text == null) return false;
+        return text.chars().anyMatch(c ->
+                (c >= 0x3040 && c <= 0x309F) || // Hiragana
+                (c >= 0x30A0 && c <= 0x30FF) || // Katakana
+                (c >= 0x4E00 && c <= 0x9FAF)    // CJK Kanji
+        );
+    }
+
+    public static boolean isVietnamese(String text) {
+        if (text == null) return false;
+        String lower = text.toLowerCase();
+        return lower.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ].*");
+    }
+
+    private String searchFirstYoutubeVideoId(String query) {
+        try {
+            String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+            String url = "https://www.youtube.com/results?search_query=" + encoded;
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Accept-Language", "en;q=0.9")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 && resp.body() != null) {
+                Matcher m = Pattern.compile("\"videoId\":\"([a-zA-Z0-9_-]{11})\"").matcher(resp.body());
+                if (m.find()) {
+                    return m.group(1);
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    public synchronized EnrichmentProgress startBulkEnrichmentAsync() {
+        if (enrichmentProgress.isRunning()) {
+            return enrichmentProgress;
         }
+
+        List<QuizSong> targets = quizSongRepository.findSongsNeedingEnrichment();
+        enrichmentProgress.setRunning(true);
+        enrichmentProgress.setTotal(targets.size());
+        enrichmentProgress.setProcessed(0);
+        enrichmentProgress.setEnriched(0);
+        enrichmentProgress.setErrors(0);
+        enrichmentProgress.setLastMessage("Bắt đầu xử lý " + targets.size() + " bài hát...");
+
+        if (targets.isEmpty()) {
+            enrichmentProgress.setRunning(false);
+            enrichmentProgress.setLastMessage("Kho nhạc đã có đầy đủ Audio và Bìa!");
+            return enrichmentProgress;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                for (int i = 0; i < targets.size(); i++) {
+                    QuizSong song = targets.get(i);
+                    enrichmentProgress.setCurrentSong(song.getTitle() + " - " + song.getArtist());
+                    try {
+                        boolean modified = enrichSongMetadata(song);
+                        if (modified) {
+                            quizSongRepository.save(song);
+                            enrichmentProgress.setEnriched(enrichmentProgress.getEnriched() + 1);
+                        }
+                    } catch (Exception e) {
+                        enrichmentProgress.setErrors(enrichmentProgress.getErrors() + 1);
+                    }
+                    enrichmentProgress.setProcessed(i + 1);
+                    enrichmentProgress.setLastMessage("Đang xử lý: " + (i + 1) + "/" + targets.size() + " bài (Đã bổ sung: " + enrichmentProgress.getEnriched() + ")");
+                    try {
+                        Thread.sleep(180); // Rate pacing to prevent API throttling
+                    } catch (InterruptedException ignored) {}
+                }
+            } finally {
+                enrichmentProgress.setRunning(false);
+                enrichmentProgress.setLastMessage("Hoàn thành bổ sung Audio & Bìa cho " + enrichmentProgress.getEnriched() + " bài hát!");
+            }
+        });
+
+        return enrichmentProgress;
+    }
+
+    public QuizSong enrichSingleSong(Long id) {
+        QuizSong song = quizSongRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bài hát ID: " + id));
+        boolean modified = enrichSongMetadata(song);
+        if (modified) {
+            song = quizSongRepository.save(song);
+        }
+        return song;
+    }
+
+    public EnrichmentProgress getEnrichmentProgress() {
+        return enrichmentProgress;
+    }
+
+    public long getMissingPreviewCount() {
+        return quizSongRepository.countSongsMissingPreview();
     }
 
     public static String[] parseTitleAndArtist(String rawTitle) {
