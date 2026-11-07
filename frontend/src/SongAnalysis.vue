@@ -24,9 +24,88 @@ const activeVersionId = ref(null)
 
 // Audio playback helper
 const audioElement = ref(null)
+const audioFileInput = ref(null)
+const isUploadingAudio = ref(false)
 const currentAudioTimeMs = ref(0)
 const isAudioPlaying = ref(false)
 const audioDurationMs = ref(0)
+const playableAudioUrl = computed(() => {
+  if (analysis.value?.currentVersion?.audioFilePath) {
+    return analysis.value.currentVersion.audioFilePath
+  }
+  return analysis.value?.previewUrl || ''
+})
+
+function triggerAudioUpload() {
+  audioFileInput.value?.click()
+}
+
+async function onAudioFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file || !activeVersionId.value) return
+  isUploadingAudio.value = true
+  showFlash('⏳ Đang tải lên và phân tích đặc trưng âm thanh bằng Librosa...')
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const token = localStorage.getItem('musicTournamentAdminToken') || 'admin-demo-2026'
+    const email = localStorage.getItem('musicTournamentAdminEmail') || ''
+
+    const res = await fetch(`/api/admin/analysis/versions/${activeVersionId.value}/upload-audio`, {
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': token,
+        'X-Admin-Email': email
+      },
+      body: formData
+    })
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.message || 'Lỗi khi phân tích file âm thanh')
+    }
+    const feature = await res.json()
+    analysis.value.audioFeature = feature
+    // Reload analysis detail to get updated version duration & audioFilePath
+    const updated = await requestApi(`/${analysis.value.id}?versionId=${activeVersionId.value}`)
+    analysis.value = updated
+    showFlash(`✓ Đã phân tích âm thanh thành công! BPM: ${feature.bpm}, Giọng: ${feature.detectedKey}`)
+  } catch (err) {
+    showFlash(err.message, true)
+  } finally {
+    isUploadingAudio.value = false
+    if (event.target) event.target.value = ''
+  }
+}
+
+function applyBoundaryPointsToSections() {
+  if (!analysis.value?.audioFeature?.boundaryPointsJson) return
+  try {
+    const points = JSON.parse(analysis.value.audioFeature.boundaryPointsJson)
+    if (!Array.isArray(points) || points.length < 2) {
+      showFlash('Không có đủ mốc boundary để tạo phân đoạn.', true)
+      return
+    }
+    const newSections = []
+    for (let i = 0; i < points.length; i++) {
+      const startMs = points[i]
+      const endMs = (i + 1 < points.length) ? points[i + 1] : (analysis.value.currentVersion?.durationMs || startMs + 30000)
+      newSections.push({
+        sectionType: (i === 0) ? 'INTRO' : (i === points.length - 1 ? 'OUTRO' : 'VERSE'),
+        sectionLabel: (i === 0) ? 'Mở đầu (Intro)' : (i === points.length - 1 ? 'Kết thúc (Outro)' : `Phân đoạn ${i}`),
+        startTimeMs: startMs,
+        endTimeMs: endMs,
+        explanation: 'Mốc thay đổi âm sắc / tiết tấu tiềm năng phát hiện bởi Librosa',
+        emotionalIntensity: 5,
+        sortOrder: i + 1
+      })
+    }
+    analysis.value.sections = newSections
+    currentTab.value = 'structure'
+    showFlash('✓ Đã áp dụng các mốc boundary points từ Librosa vào Cấu trúc bài hát!')
+  } catch (e) {
+    showFlash('Lỗi khi đọc danh sách boundary points: ' + e.message, true)
+  }
+}
 
 // Helper: Formatter ms <-> mm:ss.ms
 function msToTimeString(ms) {
@@ -520,14 +599,20 @@ onMounted(() => {
         <!-- Integrated Audio & Timestamp Controller -->
         <div class="audio-marker-box">
           <div class="audio-marker-header">
-            <span>⏱ Audio Timestamp Marker</span>
-            <span class="current-time-badge">{{ msToTimeString(currentAudioTimeMs) }} ({{ currentAudioTimeMs }} ms)</span>
+            <span>⏱ Audio Timestamp Marker & Librosa Engine</span>
+            <div class="header-audio-actions">
+              <span class="current-time-badge">{{ msToTimeString(currentAudioTimeMs) }} ({{ currentAudioTimeMs }} ms)</span>
+              <input type="file" ref="audioFileInput" accept="audio/*" style="display:none" @change="onAudioFileSelected" />
+              <button class="btn soft upload-audio-btn" :disabled="isUploadingAudio" @click="triggerAudioUpload" title="Tải lên file âm thanh để phân tích BPM, Giọng và Mốc phân đoạn bằng Librosa">
+                📁 {{ isUploadingAudio ? '⏳ Đang phân tích...' : 'Tải lên Audio' }}
+              </button>
+            </div>
           </div>
 
-          <div v-if="analysis.previewUrl" class="audio-player-row">
+          <div v-if="playableAudioUrl" class="audio-player-row">
             <audio
               ref="audioElement"
-              :src="analysis.previewUrl"
+              :src="playableAudioUrl"
               controls
               @timeupdate="onAudioTimeUpdate"
               @play="isAudioPlaying = true"
@@ -536,7 +621,25 @@ onMounted(() => {
             ></audio>
           </div>
           <div v-else class="no-preview-notice">
-            <small class="muted">Bài hát chưa có direct audio preview. Bạn có thể sử dụng link YouTube hoặc nhập timestamp thủ công (ms).</small>
+            <small class="muted">Bài hát chưa có direct audio file. Bạn có thể bấm <b>"Tải lên Audio"</b> (MP3/WAV) để Librosa tự động trích xuất BPM, Giọng và các mốc thay đổi tiềm năng.</small>
+          </div>
+
+          <!-- Librosa Detected Features Card -->
+          <div v-if="analysis.audioFeature" class="detected-audio-card">
+            <div class="feature-badges">
+              <span class="feat-badge bpm">🎵 {{ analysis.audioFeature.bpm }} BPM</span>
+              <span class="feat-badge key">🎹 Giọng: {{ analysis.audioFeature.detectedKey }}</span>
+              <span class="feat-badge time">⏱ {{ analysis.audioFeature.timeSignature || '4/4' }}</span>
+              <span class="feat-badge engine">⚙ {{ analysis.audioFeature.analysisEngine || 'Librosa' }}</span>
+            </div>
+            <button
+              v-if="analysis.audioFeature.boundaryPointsJson"
+              class="btn soft mini-apply-btn"
+              @click="applyBoundaryPointsToSections"
+              title="Khởi tạo các phân đoạn cấu trúc dựa trên mốc thay đổi âm sắc của Librosa"
+            >
+              ⚡ Áp dụng mốc Librosa vào Cấu trúc
+            </button>
           </div>
 
           <!-- Version Tab Selector -->
@@ -1459,5 +1562,54 @@ onMounted(() => {
 }
 .mini-ai-btn:hover:not(:disabled) {
   background: rgba(124, 58, 237, 0.16);
+}
+
+/* Audio & Librosa Features */
+.header-audio-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.upload-audio-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--blue, #4f46e5);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.detected-audio-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 6px;
+}
+.feature-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.feat-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.feat-badge.bpm { background: #dbeafe; color: #1e40af; }
+.feat-badge.key { background: #fef3c7; color: #92400e; }
+.feat-badge.time { background: #f1f5f9; color: #475569; }
+.feat-badge.engine { background: #e0e7ff; color: #3730a3; }
+.mini-apply-btn {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--blue, #4f46e5);
+  color: #fff;
+  padding: 4px 10px;
 }
 </style>

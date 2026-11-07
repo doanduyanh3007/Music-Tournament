@@ -2,11 +2,14 @@ package com.example.musictournament.analysis.web;
 
 import com.example.musictournament.analysis.dto.*;
 import com.example.musictournament.analysis.model.SongAnalysis;
+import com.example.musictournament.analysis.service.AudioAnalysisService;
 import com.example.musictournament.analysis.service.SongAiResearchService;
 import com.example.musictournament.analysis.service.SongAnalysisService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -17,10 +20,16 @@ public class SongAnalysisController {
 
     private final SongAnalysisService analysisService;
     private final SongAiResearchService aiResearchService;
+    private final AudioAnalysisService audioAnalysisService;
 
-    public SongAnalysisController(SongAnalysisService analysisService, SongAiResearchService aiResearchService) {
+    public SongAnalysisController(
+            SongAnalysisService analysisService,
+            SongAiResearchService aiResearchService,
+            AudioAnalysisService audioAnalysisService
+    ) {
         this.analysisService = analysisService;
         this.aiResearchService = aiResearchService;
+        this.audioAnalysisService = audioAnalysisService;
     }
 
     @GetMapping
@@ -157,5 +166,13 @@ public class SongAnalysisController {
             @RequestBody SongAudioFeatureDto dto
     ) {
         return analysisService.saveAudioFeature(versionId, dto);
+    }
+
+    @PostMapping(value = "/versions/{versionId}/upload-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SongAudioFeatureDto uploadAndAnalyzeAudio(
+            @PathVariable Long versionId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return audioAnalysisService.analyzeAndStoreAudio(versionId, file);
     }
 }
