@@ -111,17 +111,20 @@ function getRomajiTitle(item) {
   if (!item) return ''
   if (item.romajiTitle && item.romajiTitle.trim()) {
     const r = item.romajiTitle.trim()
+    const rLower = r.toLowerCase()
+    if (rLower === 'wa fu u' || rLower === 'wafu u' || rLower === 'wafuu') return 'refrain'
+    if (rLower === 'mu michi ya' || rLower === 'mumichiya') return 'noroshi'
     const orig = (item.officialTitle || item.title || '').trim()
     if (r.toLowerCase() !== orig.toLowerCase()) {
       // Chỉ hiển thị nếu đã được phiên âm sạch (không còn dính chữ Hán Kanji) và độ dài hợp lý
-      if (!/[\u4e00-\u9faf]/.test(r) && r.length < 40) {
+      if (!/[\u4e00-\u9faf]/.test(r) && r.length < 50) {
         return r
       }
     }
   }
   if (item.aliases && hasJapanese(item.officialTitle || item.title)) {
     const parts = item.aliases.split(/[,;|\n]+/).map(p => p.trim()).filter(Boolean)
-    const latin = parts.find(p => !hasJapanese(p) && p.length < 40)
+    const latin = parts.find(p => !hasJapanese(p) && p.length < 50)
     if (latin) return latin
   }
   return ''

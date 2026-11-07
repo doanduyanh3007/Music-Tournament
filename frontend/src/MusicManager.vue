@@ -844,6 +844,14 @@ function getTierLabel(diff) {
   return 'Master'
 }
 
+function getSongRomaji(song) {
+  if (!song) return ''
+  const r = (song.romajiTitle || '').trim()
+  if (r.toLowerCase() === 'wa fu u' || r.toLowerCase() === 'wafu u' || r.toLowerCase() === 'wafuu') return 'refrain'
+  if (r.toLowerCase() === 'mu michi ya' || r.toLowerCase() === 'mumichiya') return 'noroshi'
+  return r
+}
+
 // Watch filters in Library
 watch([searchQuery, selectedGenre, selectedDiffTier, activeOnly, selectedSort], () => {
   fetchSongs(0)
@@ -1348,7 +1356,7 @@ Sparkle – RADWIMPS"
             <div class="song-name-row">
               <h4 class="song-title" :title="song.title">
                 {{ song.title }}
-                <span v-if="song.romajiTitle" class="romaji-badge" title="Tên phiên âm Romaji / Tiếng Anh">🈁 {{ song.romajiTitle }}</span>
+                <span v-if="getSongRomaji(song)" class="romaji-badge" title="Tên phiên âm Romaji / Tiếng Anh">🈁 {{ getSongRomaji(song) }}</span>
               </h4>
               <span class="diff-badge" :class="getTierBadgeClass(song.difficulty)">
                 {{ getTierLabel(song.difficulty) }} ({{ song.difficulty }})

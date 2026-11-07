@@ -71,6 +71,19 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
             }
         }
 
+        // Automatic synchronization of verified romaji titles for registered songs
+        try {
+            var verifiedMap = com.example.musictournament.service.JapaneseRomanizer.getVerifiedTitleDict();
+            for (var entry : verifiedMap.entrySet()) {
+                jdbcTemplate.update(
+                        "UPDATE quiz_songs SET romaji_title = ? WHERE (title = ? OR title LIKE ?) AND (romaji_title IS NULL OR romaji_title <> ?)",
+                        entry.getValue(), entry.getKey(), "%" + entry.getKey() + "%", entry.getValue()
+                );
+            }
+        } catch (Exception e) {
+            log.debug("Skipping romaji title verification sync: {}", e.getMessage());
+        }
+
         log.info("Database schema column migrations completed successfully.");
     }
 }

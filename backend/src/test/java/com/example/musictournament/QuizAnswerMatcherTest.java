@@ -120,6 +120,22 @@ public class QuizAnswerMatcherTest {
         QuizAnswerMatcher.MatchResult r3 = matcher.matchAnswer("Haruhikage", "春日影 (MyGO!!!!! ver.)", null);
         assertTrue(r3.isCorrect());
 
+        // "refrain" matching "輪符雨"
+        QuizAnswerMatcher.MatchResult rRefrain = matcher.matchAnswer("refrain", "輪符雨", null);
+        assertTrue(rRefrain.isCorrect(), "Expected 'refrain' to match '輪符雨'");
+
+        // "noroshi" matching "無路矢"
+        QuizAnswerMatcher.MatchResult rNoroshi = matcher.matchAnswer("noroshi", "無路矢", null);
+        assertTrue(rNoroshi.isCorrect(), "Expected 'noroshi' to match '無路矢'");
+
+        // "mayoiuta" matching "迷星叫"
+        QuizAnswerMatcher.MatchResult rMayoi = matcher.matchAnswer("mayoiuta", "迷星叫", null);
+        assertTrue(rMayoi.isCorrect(), "Expected 'mayoiuta' to match '迷星叫'");
+
+        // "hitoshizuku" matching "壱雫空"
+        QuizAnswerMatcher.MatchResult rHito = matcher.matchAnswer("hitoshizuku", "壱雫空", null);
+        assertTrue(rHito.isCorrect(), "Expected 'hitoshizuku' to match '壱雫空'");
+
         // Kuromoji IPADIC dynamic romanization on Japanese Kanji
         QuizAnswerMatcher.MatchResult r4 = matcher.matchAnswer("zankyosanka", "残響散歌", null);
         assertTrue(r4.isCorrect());

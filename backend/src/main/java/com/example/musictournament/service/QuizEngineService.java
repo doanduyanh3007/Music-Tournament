@@ -446,13 +446,6 @@ public class QuizEngineService {
 
     private String resolveRomaji(QuizSong song) {
         if (song == null) return "";
-        String r = song.getRomajiTitle();
-        if (r != null && !r.isBlank() && !JapaneseRomanizer.hasJapanese(r)) {
-            return r.trim();
-        }
-        if (JapaneseRomanizer.hasJapanese(song.getTitle())) {
-            return JapaneseRomanizer.toBaseRomaji(song.getTitle());
-        }
-        return "";
+        return JapaneseRomanizer.resolveRomaji(song.getTitle(), song.getRomajiTitle());
     }
 }

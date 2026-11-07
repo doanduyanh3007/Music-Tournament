@@ -1069,9 +1069,9 @@ public class QuizMusicManagerService {
         boolean isJapanese = hasJapaneseCharacters(title) || hasJapaneseCharacters(artist);
 
         // Populate Romaji for Japanese title
-        if ((song.getRomajiTitle() == null || song.getRomajiTitle().isBlank()) && hasJapaneseCharacters(title)) {
-            String r = JapaneseRomanizer.toRomaji(title);
-            if (r != null && !r.isBlank() && !r.equalsIgnoreCase(title)) {
+        if (hasJapaneseCharacters(title)) {
+            String r = JapaneseRomanizer.resolveRomaji(title, song.getRomajiTitle());
+            if (r != null && !r.isBlank() && !r.equalsIgnoreCase(song.getRomajiTitle())) {
                 song.setRomajiTitle(r);
                 modified = true;
             }
