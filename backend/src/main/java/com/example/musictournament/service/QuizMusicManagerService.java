@@ -148,9 +148,7 @@ public class QuizMusicManagerService {
 
         // Deduplication check if creating new
         if (song.getId() == null) {
-            Optional<QuizSong> existing = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(
-                    song.getTitle(), song.getArtist()
-            );
+            Optional<QuizSong> existing = findDuplicateSong(song.getTitle(), song.getArtist(), song.getSpotifyUrl(), song.getYoutubeUrl());
             if (existing.isPresent()) {
                 QuizSong found = existing.get();
                 // Update existing record rather than duplicate
@@ -182,8 +180,155 @@ public class QuizMusicManagerService {
         return quizSongRepository.save(song);
     }
 
+
+    public Optional<QuizSong> findDuplicateSong(String title, String artist, String spotifyUrl, String youtubeUrl) {
+        if (title == null || title.isBlank()) return Optional.empty();
+
+        // 1. Direct match by title and artist
+        Optional<QuizSong> exact = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(title.trim(), artist != null ? artist.trim() : "");
+        if (exact.isPresent()) return exact;
+
+        // 2. Direct match by Spotify URL (if present)
+        if (spotifyUrl != null && !spotifyUrl.isBlank()) {
+            String targetSpKey = SongIdentity.recording(spotifyUrl);
+            if (targetSpKey != null && targetSpKey.startsWith("spotify:")) {
+                Optional<QuizSong> bySp = quizSongRepository.findFirstBySpotifyUrl(spotifyUrl.trim());
+                if (bySp.isPresent()) return bySp;
+            }
+        }
+
+        // 3. Direct match by YouTube URL (if present)
+        if (youtubeUrl != null && !youtubeUrl.isBlank()) {
+            String targetYtKey = SongIdentity.recording(youtubeUrl);
+            if (targetYtKey != null && targetYtKey.startsWith("youtube:")) {
+                Optional<QuizSong> byYt = quizSongRepository.findFirstByYoutubeUrl(youtubeUrl.trim());
+                if (byYt.isPresent()) return byYt;
+            }
+        }
+
+        // 4. Normalized title match and artist delimiter-insensitive matching
+        List<QuizSong> candidates = quizSongRepository.findByTitleIgnoreCase(title.trim());
+        for (QuizSong c : candidates) {
+            if (SongIdentity.areDuplicates(title, artist, spotifyUrl, youtubeUrl,
+                    c.getTitle(), c.getArtist(), c.getSpotifyUrl(), c.getYoutubeUrl())) {
+                return Optional.of(c);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    @Transactional
+    public Map<String, Object> deduplicateAllSongs() {
+        List<QuizSong> all = quizSongRepository.findAll();
+        int mergedCount = 0;
+        List<String> details = new ArrayList<>();
+
+        List<List<QuizSong>> clusters = new ArrayList<>();
+        for (QuizSong song : all) {
+            boolean added = false;
+            for (List<QuizSong> cluster : clusters) {
+                QuizSong rep = cluster.get(0);
+                if (SongIdentity.areDuplicates(
+                        song.getTitle(), song.getArtist(), song.getSpotifyUrl(), song.getYoutubeUrl(),
+                        rep.getTitle(), rep.getArtist(), rep.getSpotifyUrl(), rep.getYoutubeUrl())) {
+                    cluster.add(song);
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) {
+                List<QuizSong> newCluster = new ArrayList<>();
+                newCluster.add(song);
+                clusters.add(newCluster);
+            }
+        }
+
+        for (List<QuizSong> cluster : clusters) {
+            if (cluster.size() <= 1) continue;
+
+            // Pick master: highest score
+            QuizSong master = cluster.stream().max(Comparator.comparingInt(s -> {
+                int score = 0;
+                if (s.getPreviewUrl() != null && !s.getPreviewUrl().isBlank()) score += 100;
+                if (s.getArtworkUrl() != null && !s.getArtworkUrl().isBlank()) score += 50;
+                if (s.getYoutubeUrl() != null && !s.getYoutubeUrl().isBlank()) score += 30;
+                if (s.getSpotifyUrl() != null && !s.getSpotifyUrl().isBlank()) score += 30;
+                if (s.getGenre() != null && !s.getGenre().equalsIgnoreCase("General") && !s.getGenre().equalsIgnoreCase("Pop")) score += 20;
+                if (Boolean.TRUE.equals(s.getActive())) score += 10;
+                return score;
+            })).orElse(cluster.get(0));
+
+            boolean masterUpdated = false;
+
+            for (QuizSong dup : cluster) {
+                if (dup.getId().equals(master.getId())) continue;
+
+                // Merge metadata
+                if ((master.getPreviewUrl() == null || master.getPreviewUrl().isBlank()) &&
+                        (dup.getPreviewUrl() != null && !dup.getPreviewUrl().isBlank())) {
+                    master.setPreviewUrl(dup.getPreviewUrl());
+                    masterUpdated = true;
+                }
+                if ((master.getArtworkUrl() == null || master.getArtworkUrl().isBlank()) &&
+                        (dup.getArtworkUrl() != null && !dup.getArtworkUrl().isBlank())) {
+                    master.setArtworkUrl(dup.getArtworkUrl());
+                    masterUpdated = true;
+                }
+                if ((master.getYoutubeUrl() == null || master.getYoutubeUrl().isBlank()) &&
+                        (dup.getYoutubeUrl() != null && !dup.getYoutubeUrl().isBlank())) {
+                    master.setYoutubeUrl(dup.getYoutubeUrl());
+                    masterUpdated = true;
+                }
+                if ((master.getSpotifyUrl() == null || master.getSpotifyUrl().isBlank()) &&
+                        (dup.getSpotifyUrl() != null && !dup.getSpotifyUrl().isBlank())) {
+                    master.setSpotifyUrl(dup.getSpotifyUrl());
+                    masterUpdated = true;
+                }
+                if ((master.getAliases() == null || master.getAliases().isBlank()) &&
+                        (dup.getAliases() != null && !dup.getAliases().isBlank())) {
+                    master.setAliases(dup.getAliases());
+                    masterUpdated = true;
+                }
+                if ((master.getGenre() == null || master.getGenre().equalsIgnoreCase("General") || master.getGenre().equalsIgnoreCase("Pop")) &&
+                        (dup.getGenre() != null && !dup.getGenre().isBlank() && !dup.getGenre().equalsIgnoreCase("General"))) {
+                    master.setGenre(dup.getGenre());
+                    masterUpdated = true;
+                }
+
+                // Re-link QuizPoolSong
+                List<QuizPoolSong> poolSongs = quizPoolSongRepository.findBySongId(dup.getId());
+                for (QuizPoolSong ps : poolSongs) {
+                    if (quizPoolSongRepository.findByPoolIdAndSongId(ps.getPoolId(), master.getId()).isPresent()) {
+                        quizPoolSongRepository.delete(ps);
+                    } else {
+                        ps.setSongId(master.getId());
+                        quizPoolSongRepository.save(ps);
+                    }
+                }
+
+                // Delete duplicate song
+                quizSongRepository.delete(dup);
+                mergedCount++;
+                details.add("Gộp bài trùng \"" + dup.getTitle() + "\" (" + dup.getArtist() + ") vào bài ID #" + master.getId());
+            }
+
+            if (masterUpdated) {
+                quizSongRepository.save(master);
+            }
+        }
+
+        return Map.of(
+                "success", true,
+                "mergedCount", mergedCount,
+                "remainingTotal", quizSongRepository.count(),
+                "details", details
+        );
+    }
+
     @Transactional
     public void deleteSong(Long id) {
+        quizPoolSongRepository.deleteBySongId(id);
         quizSongRepository.deleteById(id);
     }
 
@@ -238,7 +383,7 @@ public class QuizMusicManagerService {
                 if (genre == null || genre.isBlank()) genre = "General";
 
                 QuizSong finalSong;
-                Optional<QuizSong> exists = quizSongRepository.findFirstByTitleIgnoreCaseAndArtistIgnoreCase(title, artist);
+                Optional<QuizSong> exists = findDuplicateSong(title, artist, spUrl, ytUrl);
                 if (exists.isPresent()) {
                     duplicates++;
                     finalSong = exists.get();

@@ -132,6 +132,11 @@ public class QuizSongController {
         return musicManagerService.enrichMetadata(title, artist, link);
     }
 
+    @PostMapping("/deduplicate")
+    public Map<String, Object> deduplicateSongs() {
+        return musicManagerService.deduplicateAllSongs();
+    }
+
     @PostMapping("/enrich-all")
     public QuizMusicManagerService.EnrichmentProgress enrichAllSongs() {
         return musicManagerService.startBulkEnrichmentAsync();

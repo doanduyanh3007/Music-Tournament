@@ -21,6 +21,12 @@ public interface QuizPoolSongRepository extends JpaRepository<QuizPoolSong, Long
     @Query("DELETE FROM QuizPoolSong qps WHERE qps.poolId = :poolId AND qps.songId = :songId")
     void deleteByPoolIdAndSongId(@Param("poolId") Long poolId, @Param("songId") Long songId);
 
+    List<QuizPoolSong> findBySongId(Long songId);
+
+    @Modifying
+    @Query("DELETE FROM QuizPoolSong qps WHERE qps.songId = :songId")
+    void deleteBySongId(@Param("songId") Long songId);
+
     @Modifying
     @Query("DELETE FROM QuizPoolSong qps WHERE qps.poolId = :poolId")
     void deleteByPoolId(@Param("poolId") Long poolId);

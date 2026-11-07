@@ -421,6 +421,41 @@ const enrichInProgress = ref(false)
 const enrichStatus = ref({ isRunning: false, total: 0, processed: 0, enriched: 0, errors: 0, currentSong: '', lastMessage: '', missingPreviewCount: 0 })
 let enrichPollTimer = null
 
+// Page Jump
+const pageJumpInput = ref(1)
+
+function jumpToPage() {
+  let p = parseInt(pageJumpInput.value)
+  if (isNaN(p) || p < 1) p = 1
+  if (p > totalPages.value) p = totalPages.value
+  fetchSongs(p - 1)
+}
+
+// Deduplication
+const dedupInProgress = ref(false)
+
+async function runDeduplication() {
+  if (dedupInProgress.value) return
+  if (!confirm('Hệ thống sẽ quét kho và tự động gộp các bài hát bị trùng lặp (khác biệt dấu phân cách ca sĩ, cùng mã Spotify/YouTube, hoặc cùng tên). Bạn có muốn tiếp tục?')) return
+  dedupInProgress.value = true
+  showAlert('Đang kiểm tra và gộp các bài hát trùng lặp...', 'info')
+  try {
+    const res = await fetch('/api/quiz/songs/deduplicate', { method: 'POST' })
+    if (!res.ok) throw new Error('Không thể gộp bài trùng lúc này')
+    const data = await res.json()
+    if (data.mergedCount > 0) {
+      showAlert(`Đã gộp thành công ${data.mergedCount} bài hát bị trùng lặp!`, 'success')
+    } else {
+      showAlert('Không phát hiện bài hát nào bị trùng lặp trong kho!', 'info')
+    }
+    fetchSongs(currentPage.value)
+  } catch (err) {
+    showAlert(err.message, 'error')
+  } finally {
+    dedupInProgress.value = false
+  }
+}
+
 async function checkEnrichStatus() {
   try {
     const res = await fetch('/api/quiz/songs/enrich-status')
@@ -812,6 +847,10 @@ function getTierLabel(diff) {
 // Watch filters in Library
 watch([searchQuery, selectedGenre, selectedDiffTier, activeOnly, selectedSort], () => {
   fetchSongs(0)
+})
+
+watch(currentPage, (val) => {
+  pageJumpInput.value = val + 1
 })
 
 onMounted(() => {
@@ -1226,14 +1265,26 @@ Sparkle – RADWIMPS"
           </div>
         </div>
 
-        <button 
-          class="anime-btn btn-enrich" 
-          :disabled="enrichInProgress" 
-          @click="startEnrichment"
-        >
-          <span v-if="enrichInProgress" class="btn-spinner"></span>
-          <span>{{ enrichInProgress ? 'Đang quét tự động...' : '✨ Tìm link nghe thử (Auto-enrich)' }}</span>
-        </button>
+        <div class="enrich-actions-group">
+          <button 
+            class="anime-btn btn-dedup" 
+            :disabled="dedupInProgress" 
+            @click="runDeduplication"
+            title="Tự động quét và gộp các bài hát bị trùng lặp trong kho"
+          >
+            <span v-if="dedupInProgress" class="btn-spinner"></span>
+            <span>{{ dedupInProgress ? 'Đang lọc...' : '🧹 Gộp bài trùng' }}</span>
+          </button>
+
+          <button 
+            class="anime-btn btn-enrich" 
+            :disabled="enrichInProgress" 
+            @click="startEnrichment"
+          >
+            <span v-if="enrichInProgress" class="btn-spinner"></span>
+            <span>{{ enrichInProgress ? 'Đang quét tự động...' : '✨ Tìm link nghe thử (Auto-enrich)' }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Live progress card if running -->
@@ -1377,6 +1428,20 @@ Sparkle – RADWIMPS"
         >
           Trang sau ›
         </button>
+
+        <div class="page-jump-container">
+          <span class="jump-label">Đến trang:</span>
+          <input 
+            type="number" 
+            v-model.number="pageJumpInput" 
+            :min="1" 
+            :max="totalPages" 
+            @keydown.enter.prevent="jumpToPage" 
+            class="page-jump-input"
+            placeholder="Số"
+          />
+          <button class="page-jump-btn" @click="jumpToPage" title="Chuyển đến trang">Đi</button>
+        </div>
       </div>
     </div>
 
@@ -2693,6 +2758,39 @@ input:checked + .slider:before {
   border-color: #ef4444;
 }
 
+/* Enrich Actions Group & Dedup */
+.enrich-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-dedup {
+  background: linear-gradient(135deg, #a855f7, #6366f1);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-dedup:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.45);
+}
+
+.btn-dedup:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Pagination */
 .manager-pagination {
   display: flex;
@@ -2700,6 +2798,56 @@ input:checked + .slider:before {
   align-items: center;
   gap: 16px;
   margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.page-jump-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.jump-label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.page-jump-input {
+  width: 65px;
+  padding: 5px 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: #f8fafc;
+  font-size: 0.85rem;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.page-jump-input:focus {
+  border-color: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+}
+
+.page-jump-btn {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-jump-btn:hover {
+  background: rgba(168, 85, 247, 0.35);
+  color: #fff;
 }
 
 .page-btn {

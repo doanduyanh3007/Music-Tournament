@@ -14,7 +14,11 @@ public interface QuizSongRepository extends JpaRepository<QuizSong, Long> {
 
     Optional<QuizSong> findFirstByTitleIgnoreCaseAndArtistIgnoreCase(String title, String artist);
 
+    List<QuizSong> findByTitleIgnoreCase(String title);
+
     Optional<QuizSong> findFirstByYoutubeUrl(String youtubeUrl);
+
+    Optional<QuizSong> findFirstBySpotifyUrl(String spotifyUrl);
 
     @Query("SELECT s FROM QuizSong s WHERE " +
            "(:query IS NULL OR :query = '' OR LOWER(s.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(s.artist) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +
