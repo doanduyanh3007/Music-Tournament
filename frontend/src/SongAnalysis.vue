@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
 const props = defineProps({
   isAdmin: { type: Boolean, default: false },
@@ -177,6 +177,7 @@ const instrumentCards = computed(() => {
 })
 
 // --- Song Chat State ---
+const chatViewportEl = ref(null)
 const chatMessages = ref([
   {
     role: 'assistant',
@@ -233,6 +234,10 @@ async function sendChatMessage(customText = null) {
     })
   } finally {
     isChatLoading.value = false
+    await nextTick()
+    if (chatViewportEl.value) {
+      chatViewportEl.value.scrollTop = chatViewportEl.value.scrollHeight
+    }
   }
 }
 
@@ -812,6 +817,13 @@ onMounted(() => {
         <p>Đang tải dữ liệu phân tích âm nhạc...</p>
       </div>
 
+      <!-- Empty / No Song Selected State -->
+      <div v-else-if="!analysis && !loading" class="empty-workspace">
+        <div class="empty-icon">🎵</div>
+        <h3>Chọn bài hát để bắt đầu phân tích</h3>
+        <p>Chọn một bài hát từ danh sách bên trên để xem hoặc tạo bản phân tích âm nhạc chuyên sâu với AI, Timeline tương tác và Song Intelligence Chat.</p>
+      </div>
+
       <!-- Main Intelligence Hub -->
       <div v-else-if="analysis" class="analysis-body">
         <!-- Unified Audio Intelligence Dock -->
@@ -819,7 +831,7 @@ onMounted(() => {
           <div class="dock-top-row">
             <div class="song-hero">
               <img
-                :src="analysis.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop'"
+                :src="analysis.artworkUrl || analysis.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop'"
                 alt="Song Cover"
                 class="song-cover-thumb"
               />
@@ -977,6 +989,20 @@ onMounted(() => {
           </div>
         </section>
 
+        <!-- Version Selector Row -->
+        <div class="version-row" v-if="analysis.versions?.length > 1">
+          <span class="version-label">📀 PHIÊN BẢN:</span>
+          <button
+            v-for="v in analysis.versions"
+            :key="v.id"
+            class="version-chip"
+            :class="{ active: v.id === activeVersionId }"
+            @click="switchVersion(v.id)"
+          >
+            {{ v.versionName }} <small>({{ v.versionType }})</small>
+          </button>
+        </div>
+
         <!-- Navigation Tabs Bar -->
         <nav class="analysis-tabs">
           <button :class="{ active: currentTab === 'structure' }" @click="currentTab = 'structure'">
@@ -1020,6 +1046,16 @@ onMounted(() => {
           </div>
 
           <div class="section-cards-list">
+            <!-- Empty state when no sections -->
+            <div v-if="!analysis.sections || analysis.sections.length === 0" class="tab-empty-state">
+              <div class="tab-empty-icon">🎼</div>
+              <h4>Chưa có phân đoạn nào</h4>
+              <p>Nhấn <b>+ Thêm phân đoạn</b> để thêm thủ công, hoặc upload file audio để Librosa phát hiện các mốc thay đổi tự động.</p>
+              <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                <button class="btn soft" @click="addSection">+ Thêm phân đoạn thủ công</button>
+                <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('STRUCTURE')">✦ AI phân tích cấu trúc</button>
+              </div>
+            </div>
             <div
               v-for="(sec, idx) in analysis.sections"
               :key="idx"
@@ -1140,6 +1176,21 @@ onMounted(() => {
 
           <!-- Mode 1: Interactive Exploration Cards -->
           <div v-if="lyricsViewMode === 'interactive'" class="lyrics-interactive-list">
+            <!-- Empty state for lyrics -->
+            <div v-if="filteredLyrics.length === 0 && !lyricSearchQuery" class="tab-empty-state">
+              <div class="tab-empty-icon">🎤</div>
+              <h4>Chưa có lời bài hát</h4>
+              <p>Nhấn <b>+ Thêm câu</b> để nhập lời thủ công, hoặc sử dụng AI để tự động dịch và phân tích lời tiếng Nhật.</p>
+              <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                <button class="btn soft" @click="addLyricLine">+ Thêm câu hát</button>
+                <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('LYRICS')">✦ AI dịch lời Nhật</button>
+              </div>
+            </div>
+            <div v-else-if="filteredLyrics.length === 0 && lyricSearchQuery" class="tab-empty-state">
+              <div class="tab-empty-icon">🔍</div>
+              <h4>Không tìm thấy câu hát phù hợp</h4>
+              <p>Thử tìm kiếm bằng tiếng Nhật, Romaji hoặc nghĩa tiếng Việt.</p>
+            </div>
             <div
               v-for="(line, idx) in filteredLyrics"
               :key="idx"
@@ -1513,7 +1564,7 @@ onMounted(() => {
           </div>
 
           <!-- Chat Messages Container -->
-          <div class="chat-viewport">
+          <div class="chat-viewport" ref="chatViewportEl">
             <div
               v-for="(msg, idx) in chatMessages"
               :key="idx"
@@ -2743,10 +2794,18 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 520px;
+  min-height: 280px;
+  max-height: 540px;
   overflow-y: auto;
   padding-right: 8px;
   margin: 14px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.4) transparent;
+}
+.chat-viewport::-webkit-scrollbar { width: 4px; }
+.chat-viewport::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 4px;
 }
 .chat-bubble-row {
   display: flex;
@@ -2878,4 +2937,238 @@ textarea:focus {
   padding: 12px 20px;
   font-size: 14px;
 }
+
+/* ================= UTILITY CLASSES ================= */
+.muted { color: #64748b; }
+.small { font-size: 12.5px; }
+
+/* head-actions wrapper inside lyric interactive card header */
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Named button helpers that inherit from .btn */
+.save-btn { min-width: 100px; }
+.add-note-btn { align-self: flex-end; }
+
+/* Chat avatar icons */
+.bot-avatar, .user-avatar {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  gap: 16px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Analysis Body Container */
+.analysis-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* jp-input special Japanese text input */
+.jp-input {
+  font-family: 'Noto Sans JP', 'Noto Serif JP', sans-serif;
+  font-size: 15px;
+}
+
+/* Background & Interpretation Card Panels */
+.background-card-panel,
+.interpretation-card-panel {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+/* Arrangement Raw View */
+.arrangement-raw-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Version Selector Row */
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  gap: 16px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Analysis Body Container */
+.analysis-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* jp-input special Japanese text input */
+.jp-input {
+  font-family: 'Noto Sans JP', 'Noto Serif JP', sans-serif;
+  font-size: 15px;
+}
+
+/* Background & Interpretation Card Panels */
+.background-card-panel,
+.interpretation-card-panel {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+/* Arrangement Raw View */
+.arrangement-raw-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Version Selector Row */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  gap: 16px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #818cf8;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Analysis Body Container */
+.analysis-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Version Selector Row */
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0 2px 0;
+}
+.version-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+.version-chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.version-chip:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+}
+.version-chip.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  color: #e0e7ff;
+}
+.version-chip small { font-size: 10px; opacity: 0.7; margin-left: 4px; }
+
+/* Empty State */
+.empty-workspace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  gap: 12px;
+  text-align: center;
+  color: #64748b;
+}
+.empty-workspace .empty-icon { font-size: 48px; }
+.empty-workspace h3 { color: #94a3b8; margin: 0; }
+.empty-workspace p { max-width: 420px; font-size: 13.5px; }
+
+/* ---- Tab empty states (inside tabs like Structure, Lyrics) ---- */
+.tab-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 56px 32px;
+  text-align: center;
+  color: #64748b;
+  border: 1.5px dashed #334155;
+  border-radius: 14px;
+  margin: 8px 0;
+  background: rgba(255,255,255,0.015);
+}
+.tab-empty-state .tab-empty-icon { font-size: 42px; }
+.tab-empty-state h4 { color: #94a3b8; margin: 0; font-size: 16px; font-weight: 600; }
+.tab-empty-state p { max-width: 400px; font-size: 13px; line-height: 1.6; margin: 0; }
 </style>
