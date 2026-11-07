@@ -844,11 +844,62 @@ function getTierLabel(diff) {
   return 'Master'
 }
 
+const VERIFIED_MYGO_ROMAJI = {
+  // Album 1 (Meisekiha) & Singles
+  '迷星叫': 'Mayoiuta',
+  '名無声': 'Namonaki',
+  '音一会': 'Otoichie',
+  '潜在表明': 'Senzai Hyoumei',
+  '影色舞': 'Silhouette Dance',
+  '壱雫空': 'Hitoshizuku',
+  '栞': 'Shiori',
+  '焚音打': 'Tanebi',
+  '無路矢': 'noroshi',
+  '碧天伴走': 'Hekiten Bansou',
+  '詩超絆': 'Utakotoba',
+  '迷路日々': 'Melody',
+  '春日影': 'Haruhikage',
+  '啼涙の星': 'Tairui no Hoshi',
+  '猛獣録': 'Moujuuroku',
+  '迷跡波': 'Meisekiha',
+
+  // Album 2 (Michinoku)
+  '歩拾道': 'Speed',
+  '明弦音': 'Again',
+  '孤壊牢': 'Kokoro',
+  '霧周途': 'Mist',
+  '端程山': 'Panorama',
+  '処救生': 'Kokyuu',
+  '輪符雨': 'refrain',
+  '夜隠染': 'Yokaze',
+  '過惰幻': 'Adayume',
+  '回層浮': 'Kaisou',
+  '砂寸奏': 'Sasurai',
+  '跡暖空': 'Michinoku',
+
+  // Album 3 (Chiheisen)
+  '羅永線': 'Line',
+  '残痕字': 'Page',
+  '残痕宇': 'Page',
+  '掌心正銘': 'Shoushin Shoumei',
+  '証命讃歌': 'Shoumei Sanka',
+  'エガクミライ': 'Egakumirai',
+  '静降想': 'Silent',
+  '素寄曲': 'Sukima',
+  '騒混出': 'Sunday',
+  '聿日箋秋': 'Ichijitsu Senshuu',
+  '往欄印': 'Ourai',
+  '致並跡': 'Chiheisen',
+  '歌いましょう鳴らしましょう': 'Utaimashou Narashimashou'
+}
+
 function getSongRomaji(song) {
   if (!song) return ''
+  const title = (song.title || '').trim()
+  for (const [key, val] of Object.entries(VERIFIED_MYGO_ROMAJI)) {
+    if (title.includes(key)) return val
+  }
   const r = (song.romajiTitle || '').trim()
-  if (r.toLowerCase() === 'wa fu u' || r.toLowerCase() === 'wafu u' || r.toLowerCase() === 'wafuu') return 'refrain'
-  if (r.toLowerCase() === 'mu michi ya' || r.toLowerCase() === 'mumichiya') return 'noroshi'
   return r
 }
 

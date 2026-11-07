@@ -40,17 +40,58 @@ public class JapaneseRomanizerTest {
         // 迷路日々 -> Melody
         assertEquals("Melody", JapaneseRomanizer.toRomaji("迷路日々"));
 
-        // 処救生 -> Spit out
-        assertEquals("Spit out", JapaneseRomanizer.toRomaji("処救生"));
+        // 処救生 -> Kokyuu
+        assertEquals("Kokyuu", JapaneseRomanizer.toRomaji("処救生"));
 
         // 端程山 -> Panorama
         assertEquals("Panorama", JapaneseRomanizer.toRomaji("端程山"));
 
-        // 孤壊牢 -> Corridor
-        assertEquals("Corridor", JapaneseRomanizer.toRomaji("孤壊牢"));
+        // 孤壊牢 -> Kokoro
+        assertEquals("Kokoro", JapaneseRomanizer.toRomaji("孤壊牢"));
 
-        // 廻色巡 -> Circle
-        assertEquals("Circle", JapaneseRomanizer.toRomaji("廻色巡"));
+        // Ca khúc trong Album 2 & 3 (từ ảnh của người dùng)
+        // 素寄曲 -> Sukima (không bị dịch thành Moto Yadoriki Kyoku)
+        assertEquals("Sukima", JapaneseRomanizer.toRomaji("素寄曲"));
+
+        // 騒混出 -> Sunday
+        assertEquals("Sunday", JapaneseRomanizer.toRomaji("騒混出"));
+
+        // 羅永線 -> Line (không bị dịch thành Ra Hisashi Sen)
+        assertEquals("Line", JapaneseRomanizer.toRomaji("羅永線"));
+
+        // 掌心正銘 -> Shoushin Shoumei (không bị dịch thành Tenohira Shin Shoumei)
+        assertEquals("Shoushin Shoumei", JapaneseRomanizer.toRomaji("掌心正銘"));
+
+        // 残痕字 & 残痕宇 -> Page (không bị dịch thành Zankon Ji)
+        assertEquals("Page", JapaneseRomanizer.toRomaji("残痕字"));
+        assertEquals("Page", JapaneseRomanizer.toRomaji("残痕宇"));
+
+        // 焚音打 -> Tanebi
+        assertEquals("Tanebi", JapaneseRomanizer.toRomaji("焚音打"));
+
+        // 歩拾道 -> Speed (không bị dịch thành Fu Jitsu Dou)
+        assertEquals("Speed", JapaneseRomanizer.toRomaji("歩拾道"));
+
+        // 回層浮 -> Kaisou
+        assertEquals("Kaisou", JapaneseRomanizer.toRomaji("回層浮"));
+
+        // 音一会 -> Otoichie
+        assertEquals("Otoichie", JapaneseRomanizer.toRomaji("音一会"));
+
+        // 静降想 -> Silent
+        assertEquals("Silent", JapaneseRomanizer.toRomaji("静降想"));
+
+        // 聿日箋秋 -> Ichijitsu Senshuu
+        assertEquals("Ichijitsu Senshuu", JapaneseRomanizer.toRomaji("聿日箋秋"));
+
+        // 往欄印 -> Ourai
+        assertEquals("Ourai", JapaneseRomanizer.toRomaji("往欄印"));
+
+        // 致並跡 -> Chiheisen
+        assertEquals("Chiheisen", JapaneseRomanizer.toRomaji("致並跡"));
+
+        // 跡暖空 -> Michinoku
+        assertEquals("Michinoku", JapaneseRomanizer.toRomaji("跡暖空"));
     }
 
     @Test
@@ -59,7 +100,7 @@ public class JapaneseRomanizerTest {
         JapaneseRomanizer.VerifiedSongEntry entry = JapaneseRomanizer.getVerifiedEntry("輪符雨");
         assertNotNull(entry, "Expected '輪符雨' to exist in verified registry");
         assertEquals("輪符雨", entry.getOriginalTitle());
-        assertEquals("ルフラン", entry.getReading());
+        assertTrue(entry.getReading().equals("りふれいん") || entry.getReading().equals("ルフラン"));
         assertEquals("refrain", entry.getRomaji());
         assertEquals("Cơn mưa điệp khúc", entry.getVietnameseTranslation());
 

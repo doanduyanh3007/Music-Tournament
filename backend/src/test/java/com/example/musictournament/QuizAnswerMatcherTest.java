@@ -136,6 +136,26 @@ public class QuizAnswerMatcherTest {
         QuizAnswerMatcher.MatchResult rHito = matcher.matchAnswer("hitoshizuku", "壱雫空", null);
         assertTrue(rHito.isCorrect(), "Expected 'hitoshizuku' to match '壱雫空'");
 
+        // "sukima" matching "素寄曲"
+        QuizAnswerMatcher.MatchResult rSukima = matcher.matchAnswer("sukima", "素寄曲", null);
+        assertTrue(rSukima.isCorrect(), "Expected 'sukima' to match '素寄曲'");
+
+        // "line" matching "羅永線"
+        QuizAnswerMatcher.MatchResult rLine = matcher.matchAnswer("line", "羅永線", null);
+        assertTrue(rLine.isCorrect(), "Expected 'line' to match '羅永線'");
+
+        // "page" matching "残痕宇" & "残痕字"
+        QuizAnswerMatcher.MatchResult rPage = matcher.matchAnswer("page", "残痕宇", null);
+        assertTrue(rPage.isCorrect(), "Expected 'page' to match '残痕宇'");
+
+        // "speed" matching "歩拾道"
+        QuizAnswerMatcher.MatchResult rSpeed = matcher.matchAnswer("speed", "歩拾道", null);
+        assertTrue(rSpeed.isCorrect(), "Expected 'speed' to match '歩拾道'");
+
+        // "tanebi" matching "焚音打"
+        QuizAnswerMatcher.MatchResult rTanebi = matcher.matchAnswer("tanebi", "焚音打", null);
+        assertTrue(rTanebi.isCorrect(), "Expected 'tanebi' to match '焚音打'");
+
         // Kuromoji IPADIC dynamic romanization on Japanese Kanji
         QuizAnswerMatcher.MatchResult r4 = matcher.matchAnswer("zankyosanka", "残響散歌", null);
         assertTrue(r4.isCorrect());

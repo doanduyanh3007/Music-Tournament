@@ -42,18 +42,25 @@ public final class JapaneseRomanizer {
         private final String reading;               // Furigana / Kana reading (vd: ルフラン, のろし, まよいうた)
         private final String romaji;                // Romaji chuẩn (vd: refrain, noroshi, Mayoiuta)
         private final String vietnameseTranslation; // Dịch nghĩa tiếng Việt (vd: Cơn mưa điệp khúc, Khói tín hiệu chỉ lối)
+        private final List<String> alternativeReadings;
 
         public VerifiedSongEntry(String originalTitle, String reading, String romaji, String vietnameseTranslation) {
+            this(originalTitle, reading, romaji, vietnameseTranslation, Collections.emptyList());
+        }
+
+        public VerifiedSongEntry(String originalTitle, String reading, String romaji, String vietnameseTranslation, List<String> alternativeReadings) {
             this.originalTitle = originalTitle;
             this.reading = reading != null ? reading.trim() : "";
             this.romaji = romaji != null ? romaji.trim() : "";
             this.vietnameseTranslation = vietnameseTranslation != null ? vietnameseTranslation.trim() : "";
+            this.alternativeReadings = alternativeReadings != null ? new ArrayList<>(alternativeReadings) : Collections.emptyList();
         }
 
         public String getOriginalTitle() { return originalTitle; }
         public String getReading() { return reading; }
         public String getRomaji() { return romaji; }
         public String getVietnameseTranslation() { return vietnameseTranslation; }
+        public List<String> getAlternativeReadings() { return Collections.unmodifiableList(alternativeReadings); }
 
         @Override
         public String toString() {
@@ -194,27 +201,55 @@ public final class JapaneseRomanizer {
         // =====================================================================
         // ĐĂNG KÝ TỪ ĐIỂN BÀI HÁT ĐÃ XÁC MINH (VERIFIED ENTRIES)
         // Lưu trữ chuẩn: { Original Title, Kana Reading, Romaji, Vietnamese Meaning }
+        // Nguồn tham khảo chính thức: Animate Times, Bushiroad Music, SUPALOVE
         // =====================================================================
 
-        // 1. MyGO!!!!! (BanG Dream!) — Ca khúc Ateji / độc quyền có cách đọc đặc biệt
-        registerVerified("輪符雨",   "ルフラン",           "refrain",         "Cơn mưa điệp khúc");
-        registerVerified("無路矢",   "のろし",             "noroshi",         "Khói tín hiệu chỉ lối");
-        registerVerified("迷星叫",   "まよいうた",         "Mayoiuta",        "Tiếng gọi vì sao lạc lối");
-        registerVerified("壱雫空",   "ひとしずく",         "Hitoshizuku",     "Một giọt mưa từ bầu trời");
-        registerVerified("碧天伴走", "へきてんばんそう",   "Hekiten Bansou",  "Chạy cùng nhau dưới bầu trời xanh");
-        registerVerified("春日影",   "はるひかげ",         "Haruhikage",      "Bóng nắng xuân");
-        registerVerified("詩超絆",   "うたことば",         "Utakotoba",       "Lời ca vượt qua gắn kết");
-        registerVerified("音一会",   "おといちえ",         "Otoichie",        "Âm thanh gặp gỡ duy nhất");
-        registerVerified("潜在表明", "せんざいひょうめい", "Senzai Hyoumei",  "Bộc lộ tiềm ẩn");
-        registerVerified("影色舞",   "シルエットダンス",   "Silhouette Dance","Điệu nhảy của bóng hình");
-        registerVerified("啼涙の星", "ているいのほし",     "Tairui no Hoshi", "Vì sao rơi lệ");
-        registerVerified("猛獣録",   "もうじゅうろく",     "Moujuuroku",      "Hồ sơ dã thú");
-        registerVerified("迷路日々", "メロディ",           "Melody",          "Những ngày trong mê lộ");
-        registerVerified("処救生",   "スピットアウト",     "Spit out",        "Nơi cứu rỗi cuộc đời");
-        registerVerified("端程山",   "パノラマ",           "Panorama",        "Bức tranh toàn cảnh núi non");
-        registerVerified("孤壊牢",   "コリドー",           "Corridor",        "Lồng giam cô độc đổ vỡ");
-        registerVerified("廻色巡",   "サークル",           "Circle",          "Vòng xoay luân hồi");
-        registerVerified("栞",       "しおり",             "Shiori",          "Chiếc kẹp sách");
+        // 1. MyGO!!!!! (BanG Dream!) — Toàn bộ ca khúc chính thức (Singles & 3 Albums: 迷跡波, 跡暖空, 致並跡)
+        registerVerified("迷星叫",   "まよいうた",         "Mayoiuta",        "Tiếng gọi vì sao lạc lối", List.of("mayoiuta"));
+        registerVerified("名無声",   "なもなき",           "Namonaki",        "Không tên không tiếng",   List.of("namonaki"));
+        registerVerified("音一会",   "おといちえ",         "Otoichie",        "Âm thanh gặp gỡ duy nhất", List.of("otoichie"));
+        registerVerified("潜在表明", "せんざいひょうめい", "Senzai Hyoumei",  "Bộc lộ tiềm ẩn",          List.of("senzaihyoumei", "senzai hyomei"));
+        registerVerified("影色舞",   "しるえっとだんす",   "Silhouette Dance","Điệu nhảy của bóng hình", List.of("silhouette dance", "kageiromai"));
+        registerVerified("壱雫空",   "ひとしずく",         "Hitoshizuku",     "Một giọt mưa từ bầu trời", List.of("hitoshizuku"));
+        registerVerified("栞",       "しおり",             "Shiori",          "Chiếc kẹp sách",          List.of("shiori"));
+        registerVerified("焚音打",   "たねび",             "Tanebi",          "Đốm lửa âm thanh",        List.of("tanebi"));
+        registerVerified("無路矢",   "のろし",             "noroshi",         "Khói tín hiệu chỉ lối",   List.of("noroshi"));
+        registerVerified("碧天伴走", "へきてんばんそう",   "Hekiten Bansou",  "Chạy cùng nhau dưới trời xanh", List.of("hekitenbansou", "hekiten bansho"));
+        registerVerified("詩超絆",   "うたことば",         "Utakotoba",       "Lời ca vượt qua gắn kết", List.of("utakotoba"));
+        registerVerified("迷路日々", "めろでぃ",           "Melody",          "Những ngày trong mê lộ",  List.of("melody", "merodi", "meirohibi"));
+        registerVerified("春日影",   "はるひかげ",         "Haruhikage",      "Bóng nắng xuân",          List.of("haruhikage", "haruhi kage"));
+        registerVerified("啼涙の星", "ているいのほし",     "Tairui no Hoshi", "Vì sao rơi lệ",          List.of("tairuinohoshi"));
+        registerVerified("猛獣録",   "もうじゅうろく",     "Moujuuroku",      "Hồ sơ dã thú",            List.of("moujuuroku", "mojuroku"));
+        registerVerified("迷跡波",   "めいせきは",         "Meisekiha",       "Sóng vết tích lạc lối",   List.of("meisekiha"));
+
+        // Album 2: 跡暖空 (Michinoku)
+        registerVerified("歩拾道",   "すぴーど",           "Speed",           "Từng bước gom nhặt con đường", List.of("speed", "supiido", "supido"));
+        registerVerified("明弦音",   "あげいん",           "Again",           "Tiếng đàn sáng rực",      List.of("again", "agein"));
+        registerVerified("孤壊牢",   "こころ",             "Kokoro",          "Lồng giam cô độc đổ vỡ",  List.of("kokoro", "corridor"));
+        registerVerified("霧周途",   "みすと",             "Mist",            "Lối mòn vây quanh sương mù", List.of("mist", "misuto"));
+        registerVerified("端程山",   "ぱのらま",           "Panorama",        "Bức tranh toàn cảnh núi non", List.of("panorama", "panorama"));
+        registerVerified("処救生",   "こきゅう",           "Kokyuu",          "Nơi cứu rỗi cuộc đời",    List.of("kokyuu", "kokyu", "spit out"));
+        registerVerified("輪符雨",   "りふれいん",         "refrain",         "Cơn mưa điệp khúc",       List.of("refrain", "rifurein"));
+        registerVerified("夜隠染",   "よかぜ",             "Yokaze",          "Màn đêm che giấu sắc màu", List.of("yokaze"));
+        registerVerified("過惰幻",   "あだゆめ",           "Adayume",         "Ảo mộng lười nhác qua đi", List.of("adayume"));
+        registerVerified("回層浮",   "かいそう",           "Kaisou",          "Tầng tầng lớp lớp nổi trôi", List.of("kaisou", "kaiso"));
+        registerVerified("砂寸奏",   "さすらい",           "Sasurai",         "Khúc tấu từng hạt cát",   List.of("sasurai"));
+        registerVerified("跡暖空",   "みちのく",           "Michinoku",       "Vết tích bầu trời ấm áp", List.of("michinoku"));
+
+        // Album 3: 致並跡 (Chiheisen)
+        registerVerified("羅永線",   "らいん",             "Line",            "Đường tơ vĩnh hằng",      List.of("line", "rain"));
+        registerVerified("残痕字",   "ぺーじ",             "Page",            "Ký tự vết tích còn lại",  List.of("page", "peeji"));
+        registerVerified("残痕宇",   "ぺーじ",             "Page",            "Ký tự vết tích còn lại",  List.of("page", "peeji"));
+        registerVerified("掌心正銘", "しょうしんしょうめい", "Shoushin Shoumei", "Chứng minh chính trực",   List.of("shoushinshoumei", "shoshinshomei", "shoushin shoumei"));
+        registerVerified("証命讃歌", "しょうめいさんか",   "Shoumei Sanka",   "Tán ca minh chứng sinh mệnh", List.of("shoumeisanka", "shomeisanka"));
+        registerVerified("エガクミライ", "えがくみらい",   "Egakumirai",      "Tương lai vẽ nên",        List.of("egakumirai"));
+        registerVerified("静降想",   "さいれんと",         "Silent",          "Tâm tưởng tĩnh lặng",     List.of("silent", "sairento"));
+        registerVerified("素寄曲",   "すきま",             "Sukima",          "Khoảng trống mộc mạc",    List.of("sukima"));
+        registerVerified("騒混出",   "さんでー",           "Sunday",          "Hỗn loạn ồn ào trào ra",  List.of("sunday", "sandee", "sande"));
+        registerVerified("聿日箋秋", "いちじつせんしゅう", "Ichijitsu Senshuu", "Một ngày dài tựa ba thu", List.of("ichijitsusenshuu", "ichijitsu senshu"));
+        registerVerified("往欄印",   "おうらい",           "Ourai",           "Dấu ấn qua lại",          List.of("ourai", "alright"));
+        registerVerified("致並跡",   "ちへいせん",         "Chiheisen",       "Đường chân trời song hành", List.of("chiheisen"));
+        registerVerified("歌いましょう鳴らしましょう", "うたいましょうならしましょう", "Utaimashou Narashimashou", "Hãy cùng hát vang hãy cùng tấu lên", List.of("utaimashou narashimashou"));
 
         // 2. Anime & J-Pop phổ biến có chữ Hán
         registerVerified("紅蓮華",         "ぐれんげ",           "Gurenge",             "Hoa sen đỏ thắm");
@@ -281,7 +316,11 @@ public final class JapaneseRomanizer {
     }
 
     private static void registerVerified(String title, String reading, String romaji, String viMeaning) {
-        VerifiedSongEntry entry = new VerifiedSongEntry(title, reading, romaji, viMeaning);
+        registerVerified(title, reading, romaji, viMeaning, Collections.emptyList());
+    }
+
+    private static void registerVerified(String title, String reading, String romaji, String viMeaning, List<String> altReadings) {
+        VerifiedSongEntry entry = new VerifiedSongEntry(title, reading, romaji, viMeaning, altReadings);
         VERIFIED_REGISTRY.put(title, entry);
         VERIFIED_ROMAJI_MAP.put(title, romaji);
     }
@@ -544,6 +583,12 @@ public final class JapaneseRomanizer {
                 String kanaRom = kanaToRomaji(entry.getReading());
                 if (!kanaRom.isBlank() && !list.contains(kanaRom)) {
                     list.add(kanaRom);
+                }
+            }
+            for (String alt : entry.getAlternativeReadings()) {
+                String altLower = alt.toLowerCase().trim();
+                if (!altLower.isEmpty() && !list.contains(altLower)) {
+                    list.add(altLower);
                 }
             }
         }
