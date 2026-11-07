@@ -176,7 +176,7 @@ public class QuizMusicManagerService {
         // Enrich audio preview and artwork if missing
         if ((song.getPreviewUrl() == null || song.getPreviewUrl().isBlank()) ||
             (song.getArtworkUrl() == null || song.getArtworkUrl().isBlank())) {
-            enrichWithItunesData(song);
+            enrichSongMetadata(song);
         }
 
         return quizSongRepository.save(song);
@@ -382,7 +382,7 @@ public class QuizMusicManagerService {
             quizSong.setDifficultyManuallySet(false);
             quizSong.setActive(true);
 
-            enrichWithItunesData(quizSong);
+            enrichSongMetadata(quizSong);
             quizSongRepository.save(quizSong);
             importedCount++;
         }
@@ -908,6 +908,10 @@ public class QuizMusicManagerService {
     // ==========================================
     // MULTI-TIER AUDIO & ARTWORK ENRICHMENT
     // ==========================================
+
+    public boolean enrichWithItunesData(QuizSong song) {
+        return enrichSongMetadata(song);
+    }
 
     public boolean enrichSongMetadata(QuizSong song) {
         if (song == null) return false;
