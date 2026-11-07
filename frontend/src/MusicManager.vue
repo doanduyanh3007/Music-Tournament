@@ -199,6 +199,30 @@ const bulkSelectedRows = ref(new Set())
 const bulkAutoEnrich = ref(true)
 const bulkImporting = ref(false)
 
+function parseCSVLine(line) {
+  const result = []
+  let insideQuotes = false
+  let current = ''
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '"') {
+      if (insideQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        insideQuotes = !insideQuotes
+      }
+    } else if (c === ',' && !insideQuotes) {
+      result.push(current.trim())
+      current = ''
+    } else {
+      current += c
+    }
+  }
+  result.push(current.trim())
+  return result
+}
+
 function parseBulkText() {
   const lines = bulkText.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
   if (lines.length === 0) {
@@ -206,43 +230,87 @@ function parseBulkText() {
     return
   }
 
+  // Check if first line is a CSV Header (e.g. Exportify or standard CSV)
+  const firstCols = parseCSVLine(lines[0]).map(c => c.toLowerCase().replace(/[^a-z0-9]/g, ''))
+  const titleColIdx = firstCols.findIndex(c => c.includes('trackname') || c.includes('title') || c.includes('songname') || c === 'song' || c === 'name')
+  const artistColIdx = firstCols.findIndex(c => c.includes('artist') || c.includes('singer'))
+  const idColIdx = firstCols.findIndex(c => c === 'spotifyid' || c === 'id' || c === 'trackid')
+  const linkColIdx = firstCols.findIndex(c => c.includes('url') || c.includes('link') || c.includes('uri'))
+  const previewColIdx = firstCols.findIndex(c => c.includes('preview'))
+  const genreColIdx = firstCols.findIndex(c => c.includes('genre'))
+  const artColIdx = firstCols.findIndex(c => c.includes('image') || c.includes('cover') || c.includes('artwork'))
+
+  const isCsvWithHeader = titleColIdx !== -1 && lines.length > 1
+  const startIdx = isCsvWithHeader ? 1 : 0
+
   const rows = []
-  for (const line of lines) {
-    // Format: Title - Artist | Link or Title / Artist | Link
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i]
     let title = ''
     let artist = ''
     let link = ''
+    let previewUrl = ''
+    let artworkUrl = ''
+    let genre = 'General'
 
-    let contentPart = line
-    if (line.includes('|')) {
-      const parts = line.split('|')
-      contentPart = parts[0].trim()
-      link = parts.slice(1).join('|').trim()
-    }
-
-    if (contentPart.includes(' - ') || contentPart.includes(' – ')) {
-      const p = contentPart.split(/ - | – /)
-      title = p[0].trim()
-      artist = p.slice(1).join(' - ').trim()
-    } else if (contentPart.includes(' / ')) {
-      const p = contentPart.split(' / ')
-      title = p[0].trim()
-      artist = p[1].trim()
+    if (isCsvWithHeader) {
+      const cols = parseCSVLine(line)
+      title = cols[titleColIdx] || ''
+      artist = (artistColIdx !== -1 ? cols[artistColIdx] : '') || 'Unknown Artist'
+      if (linkColIdx !== -1 && cols[linkColIdx]) {
+        link = cols[linkColIdx]
+      } else if (idColIdx !== -1 && cols[idColIdx]) {
+        link = 'https://open.spotify.com/track/' + cols[idColIdx]
+      }
+      if (previewColIdx !== -1 && cols[previewColIdx]) previewUrl = cols[previewColIdx]
+      if (artColIdx !== -1 && cols[artColIdx]) artworkUrl = cols[artColIdx]
+      if (genreColIdx !== -1 && cols[genreColIdx]) genre = cols[genreColIdx]
     } else {
-      title = contentPart
-      artist = 'Unknown Artist'
+      if (line.includes(',') && !line.includes(' - ') && !line.includes('|')) {
+        const cols = parseCSVLine(line)
+        if (cols.length >= 2) {
+          title = cols[0]
+          artist = cols[1]
+          if (cols[2]) link = cols[2]
+        }
+      }
+
+      if (!title) {
+        let contentPart = line
+        if (line.includes('|')) {
+          const parts = line.split('|')
+          contentPart = parts[0].trim()
+          link = parts.slice(1).join('|').trim()
+        }
+
+        if (contentPart.includes(' - ') || contentPart.includes(' – ')) {
+          const p = contentPart.split(/ - | – /)
+          title = p[0].trim()
+          artist = p.slice(1).join(' - ').trim()
+        } else if (contentPart.includes(' / ')) {
+          const p = contentPart.split(' / ')
+          title = p[0].trim()
+          artist = p[1].trim()
+        } else {
+          title = contentPart
+          artist = 'Unknown Artist'
+        }
+      }
     }
 
     // Clean leading numbers if any (e.g. "1. Song Name")
     title = title.replace(/^\d+[\.\)\-\s]+/, '').trim()
+    if (!title) continue
 
     rows.push({
       title,
-      artist,
+      artist: artist || 'Unknown Artist',
       link,
+      previewUrl,
+      artworkUrl,
       youtubeUrl: (link.includes('youtube.com') || link.includes('youtu.be')) ? link : '',
-      spotifyUrl: link.includes('spotify.com') ? link : '',
-      genre: 'General',
+      spotifyUrl: (link.includes('spotify.com') || link.startsWith('spotify:')) ? link : '',
+      genre: genre || 'General',
       isDuplicate: false
     })
   }
@@ -297,7 +365,9 @@ async function executeBulkImport() {
         youtubeUrl: r.youtubeUrl,
         spotifyUrl: r.spotifyUrl,
         link: r.link,
-        genre: r.genre || 'General'
+        genre: r.genre || 'General',
+        artworkUrl: r.artworkUrl || null,
+        previewUrl: r.previewUrl || null
       })),
       quizPoolId: selectedPoolId.value,
       addToQuizLibrary: true,
