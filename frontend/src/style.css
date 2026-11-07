@@ -4779,3 +4779,331 @@ html[data-theme="dark"] .arena-status--closed {
     font-size: 32px;
   }
 }
+
+/* ========================================================
+   SETTINGS GEAR BUTTON & SETTINGS MODAL (THEME + VOLUME)
+   ======================================================== */
+.settings-gear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  padding: 5px 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+.settings-gear-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.settings-gear-btn:hover .gear-icon {
+  transform: rotate(45deg);
+}
+.gear-icon {
+  font-size: 15px;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+.gear-text {
+  font-size: 13px;
+}
+.gear-badge {
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* SETTINGS MODAL */
+.settings-modal-card {
+  width: 100%;
+  max-width: 520px;
+  background: #181c2b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.light-mode .settings-modal-card,
+[data-theme='light'] .settings-modal-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+[data-theme='light'] .settings-modal-header {
+  border-bottom-color: #f1f5f9;
+  background: #f8fafc;
+}
+.settings-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.settings-modal-title .gear-spin {
+  font-size: 20px;
+}
+
+.settings-modal-body {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settings-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-section-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* Theme switch cards */
+.theme-switch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.theme-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: inherit;
+  text-align: left;
+}
+[data-theme='light'] .theme-card-btn {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.theme-card-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+[data-theme='light'] .theme-card-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+.theme-card-btn.active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: #6366f1;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+}
+.theme-card-icon {
+  font-size: 24px;
+}
+.theme-card-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.theme-card-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.theme-card-check {
+  margin-left: auto;
+  font-weight: bold;
+  color: #6366f1;
+  font-size: 16px;
+}
+
+/* Volume Slider & Controls */
+.volume-control-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+[data-theme='light'] .volume-control-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.volume-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mute-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  color: inherit;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.mute-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.05);
+}
+.mute-btn.muted {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.volume-slider {
+  flex: 1;
+  height: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #334155;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+[data-theme='light'] .volume-slider {
+  background: #cbd5e1;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.volume-badge {
+  min-width: 46px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  color: #38bdf8;
+  font-variant-numeric: tabular-nums;
+}
+.volume-badge.muted {
+  color: #ef4444;
+}
+
+.test-sound-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.test-sound-btn:hover {
+  background: rgba(56, 189, 248, 0.24);
+  transform: scale(1.03);
+}
+
+/* Presets pills */
+.volume-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.preset-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+[data-theme='light'] .preset-chip {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.preset-chip:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+[data-theme='light'] .preset-chip:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+.preset-chip.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.settings-modal-foot {
+  padding: 14px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(255, 255, 255, 0.02);
+}
+[data-theme='light'] .settings-modal-foot {
+  border-top-color: #f1f5f9;
+  background: #f8fafc;
+}

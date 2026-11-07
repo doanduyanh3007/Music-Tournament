@@ -7,6 +7,7 @@ import VoteSelection from './VoteSelection.vue'
 import ArenaMatchCard from './ArenaMatchCard.vue'
 import MusicManager from './MusicManager.vue'
 import MusicQuizArena from './MusicQuizArena.vue'
+import { globalVolume, isMuted, setGlobalVolume, toggleGlobalMute, playTestChime } from './soundManager.js'
 import { selectedVoteSong, isVotingOpen, canChangeVote } from './voteState.js'
 import { getChampionship, createCoronationTracker } from './championship.js'
 
@@ -184,6 +185,29 @@ function toggleTheme() {
 }
 
 // 4. Admin & Guest Role Permissions
+const showSettingsModal = ref(false)
+
+function onVolumeInput(e) {
+  const val = Number(e.target.value) / 100
+  setGlobalVolume(val)
+}
+
+function setPresetVolume(val) {
+  setGlobalVolume(val)
+  playTestChime()
+}
+
+function toggleMute() {
+  toggleGlobalMute()
+  if (!isMuted.value) {
+    playTestChime()
+  }
+}
+
+function testSound() {
+  playTestChime()
+}
+
 const userRole = ref(localStorage.getItem('musicTournamentRole') || 'GUEST')
 const isAdmin = computed(() => userRole.value === 'ADMIN')
 const currentAdminName = ref(localStorage.getItem('musicTournamentAdminName') || '')
@@ -1562,10 +1586,11 @@ onUnmounted(() => {
     <div class="brand-copy"><h1>ミュージック・トーナメント</h1><p>楽曲トーナメント · 王者を決めろ</p></div>
     <div class="top-spacer"></div><span class="top-slogan">Cùng chọn ra bài hát hay nhất! ♪</span>
 
-    <!-- Theme Toggle (Dark / Light) -->
-    <button class="theme-toggle-btn" @click="toggleTheme" :title="currentTheme==='dark' ? 'Chuyển sang giao diện Sáng (Light)' : 'Chuyển sang giao diện Tối (Dark)'">
-      <span class="theme-icon">{{ currentTheme==='dark' ? '🌙' : '☀️' }}</span>
-      <span class="theme-text">{{ currentTheme==='dark' ? 'Tối' : 'Sáng' }}</span>
+    <!-- Settings Button (Gear icon) with Theme & Volume -->
+    <button class="settings-gear-btn" @click="showSettingsModal = true" title="Cài đặt hệ thống (Giao diện Sáng/Tối & Âm lượng nhạc)">
+      <span class="gear-icon">⚙️</span>
+      <span class="gear-text">Cài đặt</span>
+      <span class="gear-badge">{{ currentTheme === 'dark' ? '🌙' : '☀️' }} {{ isMuted || globalVolume === 0 ? '🔇' : Math.round(globalVolume * 100) + '%' }}</span>
     </button>
 
     <button class="btn mini-btn player-name-btn" @click="editDisplayName">👤 {{ displayName ? 'Đổi tên' : 'Đặt tên để vote' }}</button>
@@ -2709,6 +2734,114 @@ onUnmounted(() => {
           <input :value="shareUrl" readonly class="share-url-box">
           <button class="btn primary" @click="copyShareLink">Sao chép</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- POPUP SETTINGS MODAL (THEME & VOLUME) -->
+  <div v-if="showSettingsModal" class="modal-overlay" @click.self="showSettingsModal = false">
+    <div class="settings-modal-card" role="dialog" aria-labelledby="settings-modal-title">
+      <div class="settings-modal-header">
+        <div class="settings-modal-title" id="settings-modal-title">
+          <span class="gear-spin">⚙️</span>
+          <span>Cài đặt hệ thống</span>
+        </div>
+        <button class="modal-close-btn" @click="showSettingsModal = false" title="Đóng">✕</button>
+      </div>
+
+      <div class="settings-modal-body">
+        <!-- 1. GIAO DIỆN (THEME) -->
+        <div class="settings-section">
+          <div class="settings-section-head">
+            <div>
+              <div class="settings-section-label"><span>🌓</span> Giao diện hiển thị</div>
+              <div class="settings-section-desc">Chuyển đổi giữa nền Tối (Dark mode) và nền Sáng (Light mode)</div>
+            </div>
+          </div>
+
+          <div class="theme-switch-grid">
+            <button 
+              class="theme-card-btn" 
+              :class="{ active: currentTheme === 'dark' }" 
+              @click="applyTheme('dark')"
+              title="Kích hoạt chế độ nền Tối"
+            >
+              <span class="theme-card-icon">🌙</span>
+              <div>
+                <div class="theme-card-title">Chế độ Tối</div>
+                <div class="theme-card-sub">Dark Theme</div>
+              </div>
+              <span v-if="currentTheme === 'dark'" class="theme-card-check">✓</span>
+            </button>
+
+            <button 
+              class="theme-card-btn" 
+              :class="{ active: currentTheme === 'light' }" 
+              @click="applyTheme('light')"
+              title="Kích hoạt chế độ nền Sáng"
+            >
+              <span class="theme-card-icon">☀️</span>
+              <div>
+                <div class="theme-card-title">Chế độ Sáng</div>
+                <div class="theme-card-sub">Light Theme</div>
+              </div>
+              <span v-if="currentTheme === 'light'" class="theme-card-check">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. ÂM LƯỢNG NHẠC (GLOBAL VOLUME) -->
+        <div class="settings-section">
+          <div class="settings-section-head">
+            <div>
+              <div class="settings-section-label"><span>🔊</span> Âm lượng nhạc của web</div>
+              <div class="settings-section-desc">Điều chỉnh âm lượng nhạc quiz, vòng đấu và preview nhạc</div>
+            </div>
+            <span class="volume-badge" :class="{ muted: isMuted }">
+              {{ isMuted ? 'Tắt tiếng' : Math.round(globalVolume * 100) + '%' }}
+            </span>
+          </div>
+
+          <div class="volume-control-box">
+            <div class="volume-slider-row">
+              <button 
+                class="mute-btn" 
+                :class="{ muted: isMuted }" 
+                @click="toggleMute"
+                :title="isMuted ? 'Bật lại âm thanh' : 'Tắt tiếng (Mute)'"
+              >
+                {{ isMuted || globalVolume === 0 ? '🔇' : (globalVolume < 0.4 ? '🔈' : (globalVolume < 0.75 ? '🔉' : '🔊')) }}
+              </button>
+
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                :value="isMuted ? 0 : Math.round(globalVolume * 100)" 
+                @input="onVolumeInput"
+                class="volume-slider"
+                title="Kéo để chỉnh âm lượng"
+              />
+
+              <button class="test-sound-btn" @click="testSound" title="Nghe thử âm lượng">
+                ▶ Nghe thử
+              </button>
+            </div>
+
+            <!-- Volume Presets -->
+            <div class="volume-presets-row">
+              <button class="preset-chip" :class="{ active: isMuted || globalVolume === 0 }" @click="setPresetVolume(0)">🔇 Tắt tiếng</button>
+              <button class="preset-chip" :class="{ active: !isMuted && Math.round(globalVolume * 100) === 30 }" @click="setPresetVolume(0.3)">30%</button>
+              <button class="preset-chip" :class="{ active: !isMuted && Math.round(globalVolume * 100) === 60 }" @click="setPresetVolume(0.6)">60%</button>
+              <button class="preset-chip" :class="{ active: !isMuted && Math.round(globalVolume * 100) === 80 }" @click="setPresetVolume(0.8)">80% (Chuẩn)</button>
+              <button class="preset-chip" :class="{ active: !isMuted && Math.round(globalVolume * 100) === 100 }" @click="setPresetVolume(1.0)">100%</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-modal-foot">
+        <button class="btn btn-primary" @click="showSettingsModal = false">Hoàn tất</button>
       </div>
     </div>
   </div>
