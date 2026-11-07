@@ -1,5 +1,8 @@
 package com.example.musictournament.service;
 
+import com.atilika.kuromoji.ipadic.Token;
+import com.atilika.kuromoji.ipadic.Tokenizer;
+
 import java.text.Normalizer;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -8,17 +11,19 @@ public final class JapaneseRomanizer {
 
     private JapaneseRomanizer() {}
 
+    private static final Tokenizer TOKENIZER = new Tokenizer();
+
     private static final Map<String, String> KANA_TO_ROMAJI = new LinkedHashMap<>();
     private static final Map<String, String> COMMON_KANJI_DICT = new LinkedHashMap<>();
 
     static {
-        // Yoon (compound kana) - Must come first for greedy matching
+        // Yoon (compound kana) & Extended Katakana - Must come first for greedy matching
         String[][] yoon = {
                 {"きゃ", "kya"}, {"きゅ", "kyu"}, {"きょ", "kyo"},
                 {"しゃ", "sha"}, {"しゅ", "shu"}, {"しょ", "sho"},
                 {"ちゃ", "cha"}, {"ちゅ", "chu"}, {"ちょ", "cho"},
                 {"にゃ", "nya"}, {"にゅ", "nyu"}, {"にょ", "nyo"},
-                {"ひゃ", "hya"}, {"ひゅ", "hyu"}, {"ひょ", "hyo"},
+                {"ひゃ", "hya"}, {"ヒュ", "hyu"}, {"ひょ", "hyo"},
                 {"みゃ", "mya"}, {"みゅ", "myu"}, {"みょ", "myo"},
                 {"りゃ", "rya"}, {"りゅ", "ryu"}, {"りょ", "ryo"},
                 {"ぎゃ", "gya"}, {"ぎゅ", "gyu"}, {"ぎょ", "gyo"},
@@ -38,7 +43,13 @@ public final class JapaneseRomanizer {
                 {"ピャ", "pya"}, {"ピュ", "pyu"}, {"ピョ", "pyo"},
                 {"ティ", "ti"},  {"ディ", "di"},  {"ファ", "fa"},
                 {"フィ", "fi"},  {"フェ", "fe"},  {"フォ", "fo"},
-                {"チェ", "che"}, {"ジェ", "je"},  {"シェ", "she"}
+                {"チェ", "che"}, {"ジェ", "je"},  {"シェ", "she"},
+                {"ヴァ", "va"},  {"ヴィ", "vi"},  {"ヴ", "vu"},
+                {"ヴェ", "ve"},  {"ヴォ", "vo"},
+                {"ウィ", "wi"},  {"ウェ", "we"},  {"ウォ", "wo"},
+                {"トゥ", "tu"},  {"ドゥ", "du"},
+                {"ツァ", "tsa"}, {"ツィ", "tsi"}, {"ツェ", "tse"}, {"ツォ", "tso"},
+                {"クァ", "kwa"}, {"グァ", "gwa"}
         };
         for (String[] pair : yoon) {
             KANA_TO_ROMAJI.put(pair[0], pair[1]);
@@ -52,13 +63,13 @@ public final class JapaneseRomanizer {
                 {"た", "ta"}, {"ち", "chi"}, {"つ", "tsu"}, {"て", "te"}, {"と", "to"},
                 {"な", "na"}, {"に", "ni"}, {"ぬ", "nu"}, {"ね", "ne"}, {"の", "no"},
                 {"は", "ha"}, {"ひ", "hi"}, {"ふ", "fu"}, {"へ", "he"}, {"ほ", "ho"},
-                {"ま", "ma"}, {"み", "mi"}, {"む", "mu"}, {"め", "me"}, {"も", "mo"},
+                {"ま", "ma"}, {"み", "mi"}, {"む", "mu"}, {"め", "me"}, {"モ", "mo"},
                 {"や", "ya"}, {"ゆ", "yu"}, {"よ", "yo"},
                 {"ら", "ra"}, {"り", "ri"}, {"る", "ru"}, {"れ", "re"}, {"ろ", "ro"},
                 {"わ", "wa"}, {"を", "wo"}, {"ん", "n"},
                 {"が", "ga"}, {"ぎ", "gi"}, {"ぐ", "gu"}, {"げ", "ge"}, {"ご", "go"},
                 {"ざ", "za"}, {"じ", "ji"}, {"ず", "zu"}, {"ぜ", "ze"}, {"ぞ", "zo"},
-                {"だ", "da"}, {"ぢ", "ji"}, {"づ", "zu"}, {"で", "de"}, {"ど", "do"},
+                {"だ", "da"}, {"ぢ", "ji"}, {"づ", "zu"}, {"де", "de"}, {"ど", "do"},
                 {"ば", "ba"}, {"び", "bi"}, {"ぶ", "bu"}, {"べ", "be"}, {"ぼ", "bo"},
                 {"ぱ", "pa"}, {"ぴ", "pi"}, {"ぷ", "pu"}, {"ぺ", "pe"}, {"ぽ", "po"},
 
@@ -76,14 +87,21 @@ public final class JapaneseRomanizer {
                 {"ザ", "za"}, {"ジ", "ji"}, {"ズ", "zu"}, {"ゼ", "ze"}, {"ゾ", "zo"},
                 {"ダ", "da"}, {"ヂ", "ji"}, {"ヅ", "zu"}, {"デ", "de"}, {"ド", "do"},
                 {"バ", "ba"}, {"ビ", "bi"}, {"ブ", "bu"}, {"ベ", "be"}, {"ボ", "bo"},
-                {"パ", "pa"}, {"ピ", "pi"}, {"プ", "pu"}, {"ペ", "pe"}, {"ポ", "po"}
+                {"パ", "pa"}, {"ピ", "pi"}, {"プ", "pu"}, {"ペ", "pe"}, {"ポ", "po"},
+
+                {"ぁ", "a"}, {"ぃ", "i"}, {"ぅ", "u"}, {"ぇ", "e"}, {"ぉ", "o"},
+                {"ァ", "a"}, {"ィ", "i"}, {"ゥ", "u"}, {"ェ", "e"}, {"ォ", "o"},
+                {"ゃ", "ya"}, {"ゅ", "yu"}, {"ょ", "yo"},
+                {"ャ", "ya"}, {"ュ", "yu"}, {"ョ", "yo"},
+                {"ゎ", "wa"}, {"ヮ", "wa"}
         };
         for (String[] pair : basic) {
             KANA_TO_ROMAJI.put(pair[0], pair[1]);
         }
 
-        // Popular Anime / J-Pop Kanji Titles Dictionary
+        // Popular Anime / J-Pop Kanji Titles Dictionary (Overrides for unique anime title readings)
         String[][] kanji = {
+                {"春日影", "Haruhikage"},
                 {"詩超絆", "Utakotoba"},
                 {"紅蓮華", "Gurenge"},
                 {"残響散歌", "Zankyosanka"},
@@ -150,30 +168,10 @@ public final class JapaneseRomanizer {
     }
 
     /**
-     * Converts a Japanese song title or artist to Romaji.
-     * Uses dictionary lookup first, then Kana-to-Romaji transliteration.
+     * Converts Katakana / Hiragana characters into Romaji.
      */
-    public static String toRomaji(String input) {
-        if (input == null || input.isBlank()) return "";
-        String text = input.trim();
-
-        // 1. Direct dictionary match
-        if (COMMON_KANJI_DICT.containsKey(text)) {
-            return COMMON_KANJI_DICT.get(text);
-        }
-
-        // Substring dictionary replacement (for compound titles like "詩超絆 - Anime Ver.")
-        for (Map.Entry<String, String> entry : COMMON_KANJI_DICT.entrySet()) {
-            if (text.contains(entry.getKey())) {
-                text = text.replace(entry.getKey(), entry.getValue());
-            }
-        }
-
-        if (!hasJapanese(text)) {
-            return text;
-        }
-
-        // 2. Transliterate remaining Kana characters
+    public static String kanaToRomaji(String text) {
+        if (text == null || text.isBlank()) return "";
         StringBuilder sb = new StringBuilder();
         int i = 0;
         int len = text.length();
@@ -183,12 +181,14 @@ public final class JapaneseRomanizer {
 
             // Sokuon (small tsu: っ / ッ) -> doubles next consonant
             if ((c == 'っ' || c == 'ッ') && i + 1 < len) {
-                // Peek next kana
                 String nextTwo = (i + 2 <= len) ? text.substring(i + 1, i + 3) : "";
                 String nextOne = String.valueOf(text.charAt(i + 1));
                 String nextRomaji = KANA_TO_ROMAJI.getOrDefault(nextTwo, KANA_TO_ROMAJI.get(nextOne));
                 if (nextRomaji != null && !nextRomaji.isEmpty()) {
-                    sb.append(nextRomaji.charAt(0));
+                    char firstConsonant = nextRomaji.charAt(0);
+                    if ("aeiouAEIOU".indexOf(firstConsonant) == -1) {
+                        sb.append(firstConsonant);
+                    }
                 }
                 i++;
                 continue;
@@ -198,7 +198,7 @@ public final class JapaneseRomanizer {
             if (c == 'ー') {
                 if (sb.length() > 0) {
                     char prev = sb.charAt(sb.length() - 1);
-                    if ("aeiou".indexOf(prev) != -1) {
+                    if ("aeiouAEIOU".indexOf(prev) != -1) {
                         sb.append(prev);
                     }
                 }
@@ -206,7 +206,7 @@ public final class JapaneseRomanizer {
                 continue;
             }
 
-            // Try 2-char Yoon match first
+            // Try 2-char Yoon / compound match first
             if (i + 1 < len) {
                 String two = text.substring(i, i + 2);
                 if (KANA_TO_ROMAJI.containsKey(two)) {
@@ -226,7 +226,108 @@ public final class JapaneseRomanizer {
             i++;
         }
 
-        // Normalize spaces in output
-        return sb.toString().replaceAll("\\s+", " ").trim();
+        return sb.toString();
+    }
+
+    /**
+     * Converts a Japanese song title or artist to Romaji.
+     * Uses manual dictionary lookup first, then Kuromoji morphological analysis to extract Furigana readings,
+     * and finally transliterates to Romaji.
+     */
+    public static String toRomaji(String input) {
+        if (input == null || input.isBlank()) return "";
+        String text = input.trim();
+
+        // 1. Direct dictionary match
+        if (COMMON_KANJI_DICT.containsKey(text)) {
+            return COMMON_KANJI_DICT.get(text);
+        }
+
+        // Substring dictionary replacement (for compound titles like "25時、ナイトコードで。")
+        for (Map.Entry<String, String> entry : COMMON_KANJI_DICT.entrySet()) {
+            if (text.contains(entry.getKey())) {
+                text = text.replace(entry.getKey(), entry.getValue());
+            }
+        }
+
+        if (!hasJapanese(text)) {
+            return text;
+        }
+
+        // 2. Tokenize using Kuromoji IPADIC to extract readings for Kanji
+        try {
+            List<Token> tokens = TOKENIZER.tokenize(text);
+            StringBuilder result = new StringBuilder();
+            boolean lastWasJapaneseWord = false;
+
+            for (Token token : tokens) {
+                String surface = token.getSurface();
+                String reading = token.getReading();
+
+                // If token has Katakana reading from Kuromoji
+                if (reading != null && !reading.equals("*") && !reading.isBlank()) {
+                    String romaji = kanaToRomaji(reading);
+                    if (!romaji.isBlank()) {
+                        String cap = capitalize(romaji);
+                        if (lastWasJapaneseWord) {
+                            result.append(" ");
+                        }
+                        result.append(cap);
+                        lastWasJapaneseWord = true;
+                        continue;
+                    }
+                }
+
+                // If surface itself contains Japanese Kana
+                if (hasJapanese(surface)) {
+                    String romaji = kanaToRomaji(surface);
+                    if (!romaji.isBlank()) {
+                        String cap = capitalize(romaji);
+                        if (lastWasJapaneseWord) {
+                            result.append(" ");
+                        }
+                        result.append(cap);
+                        lastWasJapaneseWord = true;
+                        continue;
+                    }
+                }
+
+                // Non-Japanese character / token
+                if (surface.equals(" ") || surface.equals("　")) {
+                    result.append(" ");
+                    lastWasJapaneseWord = false;
+                } else {
+                    // Retain ASCII symbols, letters, digits
+                    result.append(surface);
+                    lastWasJapaneseWord = false;
+                }
+            }
+
+            String romanized = result.toString().replaceAll("\\s+", " ").trim();
+            if (!romanized.isEmpty()) {
+                return romanized;
+            }
+        } catch (Exception ignored) {
+        }
+
+        // Fallback: direct kana transliteration
+        return kanaToRomaji(text).replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * Extracts core base title (removing brackets and suffixes like "(TV Size)", "(MyGO!!!!! ver.)")
+     * and converts it to Romaji.
+     */
+    public static String toBaseRomaji(String title) {
+        if (title == null || title.isBlank()) return "";
+        String base = title.replaceAll("[\\[\\(（【「『][^\\]\\)）】」』]*[\\]\\)）】」』]", "").trim();
+        base = base.replaceAll("(?i)(?:[\\s\\(\\[\\{]|^)(?:feat\\.?|ft\\.?|featuring|with)\\s*.*$", "").trim();
+        if (base.isEmpty()) base = title.trim();
+        return toRomaji(base);
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return "";
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase(Locale.ROOT);
     }
 }

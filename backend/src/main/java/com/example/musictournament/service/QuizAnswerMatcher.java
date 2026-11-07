@@ -208,11 +208,17 @@ public class QuizAnswerMatcher {
         // Tạo danh sách các target hợp lệ (Official + Variants tự động trích xuất + Aliases)
         Set<String> candidates = new LinkedHashSet<>();
         if (officialTarget != null && !officialTarget.isBlank()) {
-            candidates.addAll(generateTargetVariants(officialTarget));
-            if (JapaneseRomanizer.hasJapanese(officialTarget)) {
-                String romaji = JapaneseRomanizer.toRomaji(officialTarget);
-                if (romaji != null && !romaji.isBlank()) {
-                    candidates.addAll(generateTargetVariants(romaji));
+            Set<String> baseVariants = generateTargetVariants(officialTarget);
+            candidates.addAll(baseVariants);
+
+            for (String v : baseVariants) {
+                if (JapaneseRomanizer.hasJapanese(v)) {
+                    String romaji = JapaneseRomanizer.toRomaji(v);
+                    if (romaji != null && !romaji.isBlank()) {
+                        candidates.add(romaji);
+                        candidates.add(romaji.replace(" ", ""));
+                        candidates.addAll(generateTargetVariants(romaji));
+                    }
                 }
             }
         }
@@ -222,7 +228,18 @@ public class QuizAnswerMatcher {
             for (String p : parts) {
                 String trimmed = p.trim().replaceAll("^[\"']+|[\"']+$", "").trim();
                 if (!trimmed.isEmpty()) {
-                    candidates.addAll(generateTargetVariants(trimmed));
+                    Set<String> aliasVariants = generateTargetVariants(trimmed);
+                    candidates.addAll(aliasVariants);
+                    for (String av : aliasVariants) {
+                        if (JapaneseRomanizer.hasJapanese(av)) {
+                            String romaji = JapaneseRomanizer.toRomaji(av);
+                            if (romaji != null && !romaji.isBlank()) {
+                                candidates.add(romaji);
+                                candidates.add(romaji.replace(" ", ""));
+                                candidates.addAll(generateTargetVariants(romaji));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -240,7 +257,14 @@ public class QuizAnswerMatcher {
                 return new MatchResult(MatchStatus.EXACT, 1.0, candidate, "Chính xác tuyệt đối!");
             }
 
-            // 2. So khớp Base Title khi có đuôi feat/remix/ver
+            // 2. So khớp khi bỏ khoảng trắng (e.g. "haruhikage" vs "haruhi kage", "badapple" vs "bad apple")
+            String compactUser = normUser.replace(" ", "");
+            String compactCand = normCandidate.replace(" ", "");
+            if (compactUser.length() >= 3 && compactUser.equals(compactCand)) {
+                return new MatchResult(MatchStatus.EXACT, 1.0, candidate, "Chính xác tuyệt đối!");
+            }
+
+            // 3. So khớp Base Title khi có đuôi feat/remix/ver
             if (isBaseTitleMatch(normUser, normCandidate)) {
                 return new MatchResult(MatchStatus.CORRECT, 0.98, candidate, "Chính xác!");
             }

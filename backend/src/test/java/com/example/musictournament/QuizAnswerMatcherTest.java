@@ -105,4 +105,26 @@ public class QuizAnswerMatcherTest {
         QuizAnswerMatcher.MatchResult r2 = matcher.matchAnswer("Kimetsu no Yaiba OP", "Gurenge", aliases);
         assertTrue(r2.isCorrect());
     }
+
+    @Test
+    public void testJapaneseRomajiMatching() {
+        // "haruhikage" should match "春日影 (MyGO!!!!! ver.)"
+        QuizAnswerMatcher.MatchResult r1 = matcher.matchAnswer("haruhikage", "春日影 (MyGO!!!!! ver.)", null);
+        assertTrue(r1.isCorrect(), "Expected 'haruhikage' to match '春日影 (MyGO!!!!! ver.)'");
+
+        // With space: "haruhi kage"
+        QuizAnswerMatcher.MatchResult r2 = matcher.matchAnswer("haruhi kage", "春日影 (MyGO!!!!! ver.)", null);
+        assertTrue(r2.isCorrect());
+
+        // Capitalized: "Haruhikage"
+        QuizAnswerMatcher.MatchResult r3 = matcher.matchAnswer("Haruhikage", "春日影 (MyGO!!!!! ver.)", null);
+        assertTrue(r3.isCorrect());
+
+        // Kuromoji IPADIC dynamic romanization on Japanese Kanji
+        QuizAnswerMatcher.MatchResult r4 = matcher.matchAnswer("zankyosanka", "残響散歌", null);
+        assertTrue(r4.isCorrect());
+
+        QuizAnswerMatcher.MatchResult r5 = matcher.matchAnswer("ao no sumika", "青のすみか", null);
+        assertTrue(r5.isCorrect());
+    }
 }

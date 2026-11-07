@@ -468,7 +468,7 @@ public class QuizMultiplayerService {
                 // ROUND OVER: Reveal official answer and First Blood recipient!
                 state.put("officialTitle", q.song.getTitle());
                 state.put("officialArtist", q.song.getArtist());
-                state.put("romajiTitle", q.song.getRomajiTitle() != null ? q.song.getRomajiTitle() : JapaneseRomanizer.toRomaji(q.song.getTitle()));
+                state.put("romajiTitle", resolveRomaji(q.song));
                 state.put("officialArtwork", q.song.getArtworkUrl());
                 state.put("officialYoutubeUrl", q.song.getYoutubeUrl());
                 state.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());
@@ -519,5 +519,17 @@ public class QuizMultiplayerService {
             sb.append(chars.charAt(rnd.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    private String resolveRomaji(QuizSong song) {
+        if (song == null) return "";
+        String r = song.getRomajiTitle();
+        if (r != null && !r.isBlank() && !JapaneseRomanizer.hasJapanese(r)) {
+            return r.trim();
+        }
+        if (JapaneseRomanizer.hasJapanese(song.getTitle())) {
+            return JapaneseRomanizer.toBaseRomaji(song.getTitle());
+        }
+        return "";
     }
 }
