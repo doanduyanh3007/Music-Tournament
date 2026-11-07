@@ -175,4 +175,12 @@ public class SongAnalysisController {
     ) {
         return audioAnalysisService.analyzeAndStoreAudio(versionId, file);
     }
+
+    @PostMapping("/{id}/chat")
+    public SongChatResponse chatWithSong(
+            @PathVariable Long id,
+            @RequestBody SongChatRequest request
+    ) {
+        return aiResearchService.chatWithSong(id, request);
+    }
 }

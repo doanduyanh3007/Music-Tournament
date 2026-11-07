@@ -89,4 +89,47 @@ class SongAiResearchServiceTest {
         // Crucial requirement: custom manual arrangement must NOT be overwritten!
         assertThat(updated.getMusicalArrangement()).isEqualTo(customArrangement);
     }
+
+    @Test
+    @DisplayName("Song Chat returns categorized answers and follow-up suggested questions with context")
+    void testSongChatInteractivity() {
+        SongAnalysisDetailDto detail = analysisService.getOrCreateAnalysis(sampleSong.getId());
+
+        // Ask about lyrics
+        var lyricsReq = new com.example.musictournament.analysis.dto.SongChatRequest(
+                "Phân tích ẩn dụ và cảm xúc của câu hát điệp khúc",
+                java.util.List.of(),
+                "LYRICS",
+                "迷星叫 (Mayoiuta)"
+        );
+        var lyricsRes = aiResearchService.chatWithSong(detail.getId(), lyricsReq);
+        assertThat(lyricsRes).isNotNull();
+        assertThat(lyricsRes.reply()).isNotBlank();
+        assertThat(lyricsRes.category()).isEqualTo("ANALYSIS");
+        assertThat(lyricsRes.suggestedQuestions()).isNotEmpty();
+
+        // Ask about instrument arrangement
+        var arrReq = new com.example.musictournament.analysis.dto.SongChatRequest(
+                "Vai trò của tiếng Bass và Guitar ở phân đoạn cao trào là gì?",
+                java.util.List.of(),
+                "ARRANGEMENT",
+                "Guitar & Bassline"
+        );
+        var arrRes = aiResearchService.chatWithSong(detail.getId(), arrReq);
+        assertThat(arrRes).isNotNull();
+        assertThat(arrRes.reply()).contains("Guitar");
+        assertThat(arrRes.category()).isEqualTo("ANALYSIS");
+        assertThat(arrRes.suggestedQuestions()).isNotEmpty();
+
+        // Ask about background facts
+        var bgReq = new com.example.musictournament.analysis.dto.SongChatRequest(
+                "Cho tôi biết bối cảnh và nguồn gốc chính thức của bài hát này",
+                java.util.List.of(),
+                "BACKGROUND",
+                ""
+        );
+        var bgRes = aiResearchService.chatWithSong(detail.getId(), bgReq);
+        assertThat(bgRes).isNotNull();
+        assertThat(bgRes.category()).isEqualTo("FACT");
+    }
 }
