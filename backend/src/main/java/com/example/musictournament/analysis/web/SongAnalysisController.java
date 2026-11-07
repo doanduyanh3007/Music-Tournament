@@ -2,6 +2,7 @@ package com.example.musictournament.analysis.web;
 
 import com.example.musictournament.analysis.dto.*;
 import com.example.musictournament.analysis.model.SongAnalysis;
+import com.example.musictournament.analysis.service.SongAiResearchService;
 import com.example.musictournament.analysis.service.SongAnalysisService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -15,9 +16,11 @@ import java.util.Map;
 public class SongAnalysisController {
 
     private final SongAnalysisService analysisService;
+    private final SongAiResearchService aiResearchService;
 
-    public SongAnalysisController(SongAnalysisService analysisService) {
+    public SongAnalysisController(SongAnalysisService analysisService, SongAiResearchService aiResearchService) {
         this.analysisService = analysisService;
+        this.aiResearchService = aiResearchService;
     }
 
     @GetMapping
@@ -49,6 +52,20 @@ public class SongAnalysisController {
             @RequestParam(required = false) Long versionId
     ) {
         return analysisService.getAnalysisDetail(id, versionId);
+    }
+
+    @PostMapping("/{id}/generate")
+    public Map<String, Object> triggerAiGeneration(
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "ALL") String module
+    ) {
+        aiResearchService.runAiAnalysisAsync(id, module);
+        return Map.of(
+                "status", "ANALYZING",
+                "analysisId", id,
+                "module", module.toUpperCase(),
+                "message", "Phân tích AI đang được tiến hành ngầm. Trạng thái sẽ tự động cập nhật khi hoàn tất."
+        );
     }
 
     @PutMapping("/{id}")

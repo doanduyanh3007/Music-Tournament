@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   isAdmin: { type: Boolean, default: false },
@@ -375,6 +375,56 @@ watch(() => props.selectedSongId, (newId) => {
   }
 })
 
+// --- AI Research & Translation Trigger ---
+const isAiRunning = ref(false)
+const aiRunningModule = ref('')
+let aiPollTimer = null
+
+async function triggerAiResearch(moduleName = 'ALL') {
+  if (!analysis.value?.id) return
+  isAiRunning.value = true
+  aiRunningModule.value = moduleName
+  try {
+    const res = await requestApi(`/${analysis.value.id}/generate?module=${encodeURIComponent(moduleName)}`, {
+      method: 'POST'
+    })
+    showFlash(`🤖 Đang thực hiện AI Research (${moduleName}). Vui lòng đợi trong giây lát...`)
+    analysis.value.status = 'ANALYZING'
+
+    // Poll for async completion
+    if (aiPollTimer) clearInterval(aiPollTimer)
+    aiPollTimer = setInterval(async () => {
+      try {
+        const updated = await requestApi(`/${analysis.value.id}${activeVersionId.value ? `?versionId=${activeVersionId.value}` : ''}`)
+        if (updated.status === 'COMPLETED' || updated.status === 'FAILED') {
+          clearInterval(aiPollTimer)
+          aiPollTimer = null
+          analysis.value = updated
+          isAiRunning.value = false
+          aiRunningModule.value = ''
+          if (updated.status === 'COMPLETED') {
+            showFlash(`✓ Hoàn tất phân tích AI cho module: ${moduleName}!`)
+          } else {
+            showFlash('⚠ Quá trình AI Research gặp sự cố.', true)
+          }
+        }
+      } catch (e) {
+        clearInterval(aiPollTimer)
+        aiPollTimer = null
+        isAiRunning.value = false
+      }
+    }, 2000)
+  } catch (err) {
+    isAiRunning.value = false
+    aiRunningModule.value = ''
+    showFlash(err.message, true)
+  }
+}
+
+onUnmounted(() => {
+  if (aiPollTimer) clearInterval(aiPollTimer)
+})
+
 onMounted(() => {
   if (props.isAdmin) {
     loadSongsLibrary()
@@ -428,6 +478,15 @@ onMounted(() => {
               <option value="FAILED">⚠ Cần xem xét lại</option>
             </select>
           </div>
+
+          <button 
+            class="btn soft ai-btn" 
+            :disabled="isAiRunning || !analysis" 
+            @click="triggerAiResearch('ALL')"
+            title="Tự động tra cứu, dịch lời và phân tích toàn bộ bằng AI"
+          >
+            {{ isAiRunning && aiRunningModule === 'ALL' ? '⚡ AI đang phân tích...' : '🤖 AI Auto-Research' }}
+          </button>
 
           <button class="btn primary save-all-btn" :disabled="saving" @click="saveCoreAnalysis">
             {{ saving ? '⏳ Đang lưu...' : '💾 Lưu phân tích' }}
@@ -528,7 +587,10 @@ onMounted(() => {
             <h4>Bối cảnh sáng tác & Câu chuyện phía sau ca khúc</h4>
             <p class="muted small">Lịch sử ra đời, tác giả lời/nhạc, sự kiện anime hoặc hành trình của nghệ sĩ.</p>
           </div>
-          <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          <div class="pane-actions">
+            <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('BACKGROUND')">🤖 AI tra cứu bối cảnh</button>
+            <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          </div>
         </div>
         <textarea
           v-model="analysis.songBackground"
@@ -649,6 +711,7 @@ onMounted(() => {
             <p class="muted small">Tách biệt rõ ràng phiên âm Romaji, dịch sát nghĩa từ vựng và dịch biểu cảm ngữ cảnh.</p>
           </div>
           <div class="pane-actions">
+            <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('LYRICS')">🤖 AI dịch & phân tích lời Nhật</button>
             <button class="btn soft" @click="addLyricLine">+ Thêm câu hát</button>
             <button class="btn primary" @click="saveLyrics">Lưu toàn bộ lời</button>
           </div>
@@ -723,7 +786,10 @@ onMounted(() => {
             <h4>Hòa âm & Nhạc cụ (Musical Arrangement)</h4>
             <p class="muted small">Phân tích sắc thái Guitar, Bass, Drums, Keyboard, bè Vocal và sự chuyển dịch cao trào.</p>
           </div>
-          <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          <div class="pane-actions">
+            <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('ARRANGEMENT')">🤖 AI phân tích hòa âm</button>
+            <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          </div>
         </div>
         <textarea
           v-model="analysis.musicalArrangement"
@@ -740,7 +806,10 @@ onMounted(() => {
             <h4>Ý nghĩa tổng thể & Đánh giá ca khúc</h4>
             <p class="muted small">Tổng hợp thông điệp nghệ thuật, sự đồng điệu giữa lời hát, cấu trúc và hòa âm.</p>
           </div>
-          <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          <div class="pane-actions">
+            <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('INTERPRETATION')">🤖 AI tổng kết ý nghĩa</button>
+            <button class="btn soft" @click="saveCoreAnalysis">Lưu nội dung</button>
+          </div>
         </div>
         <textarea
           v-model="analysis.overallInterpretation"
@@ -756,6 +825,9 @@ onMounted(() => {
           <div>
             <h4>Nguồn tham khảo & Dữ kiện đối chứng</h4>
             <p class="muted small">Lưu lại nguồn gốc thông tin: Phỏng vấn nghệ sĩ, nhà sản xuất, bài phân tích chuyên môn.</p>
+          </div>
+          <div class="pane-actions">
+            <button class="btn soft mini-ai-btn" :disabled="isAiRunning" @click="triggerAiResearch('SOURCES')">🤖 AI tìm nguồn tham khảo</button>
           </div>
         </div>
 
@@ -1363,5 +1435,29 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 13px;
   resize: vertical;
+}
+
+/* AI Buttons */
+.ai-btn {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #7c3aed;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.ai-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25));
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+.mini-ai-btn {
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+}
+.mini-ai-btn:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.16);
 }
 </style>
