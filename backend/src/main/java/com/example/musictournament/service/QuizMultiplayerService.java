@@ -468,6 +468,7 @@ public class QuizMultiplayerService {
                 // ROUND OVER: Reveal official answer and First Blood recipient!
                 state.put("officialTitle", q.song.getTitle());
                 state.put("officialArtist", q.song.getArtist());
+                state.put("romajiTitle", q.song.getRomajiTitle() != null ? q.song.getRomajiTitle() : JapaneseRomanizer.toRomaji(q.song.getTitle()));
                 state.put("officialArtwork", q.song.getArtworkUrl());
                 state.put("officialYoutubeUrl", q.song.getYoutubeUrl());
                 state.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());

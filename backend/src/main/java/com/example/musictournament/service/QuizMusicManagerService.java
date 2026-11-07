@@ -1068,6 +1068,15 @@ public class QuizMusicManagerService {
 
         boolean isJapanese = hasJapaneseCharacters(title) || hasJapaneseCharacters(artist);
 
+        // Populate Romaji for Japanese title
+        if ((song.getRomajiTitle() == null || song.getRomajiTitle().isBlank()) && hasJapaneseCharacters(title)) {
+            String r = JapaneseRomanizer.toRomaji(title);
+            if (r != null && !r.isBlank() && !r.equalsIgnoreCase(title)) {
+                song.setRomajiTitle(r);
+                modified = true;
+            }
+        }
+
         // 1. Try iTunes (supports direct 30s MP3/AAC preview and 600x600 artwork)
         boolean foundItunes = false;
         if (isJapanese) {
@@ -1144,6 +1153,14 @@ public class QuizMusicManagerService {
                 if (results.isArray() && results.size() > 0) {
                     JsonNode item = results.get(0);
                     boolean updated = false;
+
+                    String trackName = item.path("trackName").asText("");
+                    if (!trackName.isBlank() && "US".equalsIgnoreCase(country) && hasJapaneseCharacters(song.getTitle())) {
+                        if (!hasJapaneseCharacters(trackName)) {
+                            song.setRomajiTitle(trackName);
+                            updated = true;
+                        }
+                    }
 
                     String preview = item.path("previewUrl").asText("");
                     if (!preview.isBlank() && (song.getPreviewUrl() == null || song.getPreviewUrl().isBlank())) {

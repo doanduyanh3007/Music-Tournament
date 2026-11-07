@@ -335,6 +335,7 @@ public class QuizEngineService {
         // REVEAL OFFICIAL ANSWER ONCE ANSWERED:
         res.put("officialTitle", song.getTitle());
         res.put("officialArtist", song.getArtist());
+        res.put("romajiTitle", song.getRomajiTitle() != null ? song.getRomajiTitle() : JapaneseRomanizer.toRomaji(song.getTitle()));
         res.put("officialArtwork", song.getArtworkUrl());
         res.put("officialYoutubeUrl", song.getYoutubeUrl());
         res.put("audioUrl", song.getPreviewUrl() != null && !song.getPreviewUrl().isBlank() ? song.getPreviewUrl() : song.getYoutubeUrl());
@@ -415,6 +416,7 @@ public class QuizEngineService {
         res.put("currentStreak", 0);
         res.put("officialTitle", q.song.getTitle());
         res.put("officialArtist", q.song.getArtist());
+        res.put("romajiTitle", q.song.getRomajiTitle() != null ? q.song.getRomajiTitle() : JapaneseRomanizer.toRomaji(q.song.getTitle()));
         res.put("officialArtwork", q.song.getArtworkUrl());
         res.put("officialYoutubeUrl", q.song.getYoutubeUrl());
         res.put("audioUrl", q.song.getPreviewUrl() != null && !q.song.getPreviewUrl().isBlank() ? q.song.getPreviewUrl() : q.song.getYoutubeUrl());

@@ -1346,7 +1346,10 @@ Sparkle – RADWIMPS"
           <!-- Info -->
           <div class="song-main-info">
             <div class="song-name-row">
-              <h4 class="song-title" :title="song.title">{{ song.title }}</h4>
+              <h4 class="song-title" :title="song.title">
+                {{ song.title }}
+                <span v-if="song.romajiTitle" class="romaji-badge" title="Tên phiên âm Romaji / Tiếng Anh">🈁 {{ song.romajiTitle }}</span>
+              </h4>
               <span class="diff-badge" :class="getTierBadgeClass(song.difficulty)">
                 {{ getTierLabel(song.difficulty) }} ({{ song.difficulty }})
               </span>
@@ -3352,5 +3355,18 @@ input:checked + .slider:before {
 .empty-icon {
   font-size: 2.5rem;
   margin-bottom: 8px;
+}
+
+/* Romaji Badge */
+.romaji-badge {
+  display: inline-block;
+  font-size: 0.75em;
+  font-weight: 500;
+  color: #38bdf8;
+  margin-left: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 </style>

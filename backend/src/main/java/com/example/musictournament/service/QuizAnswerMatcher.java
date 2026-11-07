@@ -209,6 +209,12 @@ public class QuizAnswerMatcher {
         Set<String> candidates = new LinkedHashSet<>();
         if (officialTarget != null && !officialTarget.isBlank()) {
             candidates.addAll(generateTargetVariants(officialTarget));
+            if (JapaneseRomanizer.hasJapanese(officialTarget)) {
+                String romaji = JapaneseRomanizer.toRomaji(officialTarget);
+                if (romaji != null && !romaji.isBlank()) {
+                    candidates.addAll(generateTargetVariants(romaji));
+                }
+            }
         }
 
         if (rawAliases != null && !rawAliases.isBlank()) {

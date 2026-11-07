@@ -49,6 +49,7 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
 
         // Migrations for quiz_songs table
         String[] songColumns = {
+                "ALTER TABLE quiz_songs ADD COLUMN IF NOT EXISTS romaji_title VARCHAR(255)",
                 "ALTER TABLE quiz_songs ADD COLUMN IF NOT EXISTS aliases TEXT",
                 "ALTER TABLE quiz_songs ADD COLUMN IF NOT EXISTS artwork_url VARCHAR(500)",
                 "ALTER TABLE quiz_songs ADD COLUMN IF NOT EXISTS preview_url VARCHAR(500)",

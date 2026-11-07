@@ -105,6 +105,34 @@ const summary = ref(null)
 
 // Gameplay runtime state
 const playerAnswer = ref('')
+const lastSubmittedAnswer = ref('')
+
+function getRomajiTitle(item) {
+  if (!item) return ''
+  if (item.romajiTitle && item.romajiTitle.trim()) {
+    const r = item.romajiTitle.trim()
+    const orig = (item.officialTitle || item.title || '').trim()
+    if (r.toLowerCase() !== orig.toLowerCase()) {
+      return r
+    }
+  }
+  if (item.aliases && hasJapanese(item.officialTitle || item.title)) {
+    const parts = item.aliases.split(/[,;|\n]+/).map(p => p.trim()).filter(Boolean)
+    const latin = parts.find(p => !hasJapanese(p))
+    if (latin) return latin
+  }
+  return ''
+}
+
+function hasJapanese(text) {
+  if (!text) return false
+  return /[\u3040-\u30ff\u4e00-\u9faf]/.test(text)
+}
+
+function isAnswerCorrect(result) {
+  if (!result) return false
+  return result.status === 'EXACT' || result.status === 'CORRECT' || (result.earnedPoints && result.earnedPoints > 0)
+}
 const answerFeedback = ref(null)
 const hintsUnlocked = ref([])
 const isSubmitting = ref(false)
@@ -476,6 +504,7 @@ function toggleReplayAudio(item) {
 async function submitAnswer() {
   const ans = playerAnswer.value.trim()
   if (!ans || isSubmitting.value) return
+  lastSubmittedAnswer.value = ans
   isSubmitting.value = true
 
   if (activeMainTab.value === 'multiplayer') {
@@ -561,6 +590,7 @@ async function submitAnswer() {
 async function skipQuestion() {
   if (activeMainTab.value === 'multiplayer') return
   if (!sessionId.value || !currentQuestion.value) return
+  lastSubmittedAnswer.value = playerAnswer.value.trim()
   stopTimer()
 
   try {
@@ -829,7 +859,7 @@ onUnmounted(() => {
           <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
 
           <p v-if="gameState === 'round_result'" class="revealed-stage-notice">
-            ✨ {{ lastResult?.officialTitle }} — {{ lastResult?.officialArtist }}
+            ✨ {{ lastResult?.officialTitle }} <span v-if="getRomajiTitle(lastResult)" class="romaji-stage">({{ getRomajiTitle(lastResult) }})</span> — {{ lastResult?.officialArtist }}
           </p>
           <p v-else-if="currentQuestion?.isBlind" class="blind-notice">🙈 Chế độ Đoán Mù: Ảnh bìa đã được bảo mật!</p>
         </div>
@@ -849,8 +879,19 @@ onUnmounted(() => {
           <div class="official-answer-reveal">
             <img :src="getResolvedArtwork(lastResult, currentQuestion)" class="revealed-cover" alt="Official" />
             <div class="revealed-text">
-              <h3>{{ lastResult?.officialTitle }}</h3>
+              <h3>
+                {{ lastResult?.officialTitle }}
+                <span v-if="getRomajiTitle(lastResult)" class="romaji-badge">({{ getRomajiTitle(lastResult) }})</span>
+              </h3>
               <p class="artist-reveal">👤 {{ lastResult?.officialArtist }}</p>
+
+              <!-- Player's submitted answer -->
+              <div class="user-answer-display-row" :class="isAnswerCorrect(lastResult) ? 'correct' : 'wrong'">
+                <span class="user-ans-label">💬 Đáp án của bạn:</span>
+                <b v-if="lastSubmittedAnswer" class="user-ans-text">{{ lastSubmittedAnswer }}</b>
+                <em v-else class="user-ans-empty">(Chưa nhập đáp án / Hết giờ)</em>
+              </div>
+
               <small v-if="lastResult?.aliases" class="aliases-reveal">Tên khác: {{ lastResult?.aliases }}</small>
 
               <!-- Audio Replay Control in Intermission -->
@@ -1112,7 +1153,7 @@ onUnmounted(() => {
               </div>
               <div class="sound-wave-bars" :class="{ active: isAudioPlaying }"><span v-for="n in 12" :key="n" class="bar"></span></div>
               <p v-if="currentRoom.status === 'ROUND_RESULT'" class="revealed-stage-notice">
-                ✨ {{ currentRoom.officialTitle }} — {{ currentRoom.officialArtist }}
+                ✨ {{ currentRoom.officialTitle }} <span v-if="getRomajiTitle(currentRoom)" class="romaji-stage">({{ getRomajiTitle(currentRoom) }})</span> — {{ currentRoom.officialArtist }}
               </p>
             </div>
 
@@ -1124,8 +1165,19 @@ onUnmounted(() => {
               <div class="official-answer-reveal">
                 <img :src="getResolvedArtwork(currentRoom, currentQuestion)" class="revealed-cover" alt="Official" />
                 <div class="revealed-text">
-                  <h3>{{ currentRoom.officialTitle }}</h3>
+                  <h3>
+                    {{ currentRoom.officialTitle }}
+                    <span v-if="getRomajiTitle(currentRoom)" class="romaji-badge">({{ getRomajiTitle(currentRoom) }})</span>
+                  </h3>
                   <p class="artist-reveal">👤 {{ currentRoom.officialArtist }}</p>
+
+                  <!-- Player's submitted answer in multiplayer -->
+                  <div class="user-answer-display-row" :class="myMultiplayerAnswerStatus === 'CORRECT' ? 'correct' : 'wrong'">
+                    <span class="user-ans-label">💬 Đáp án của bạn:</span>
+                    <b v-if="lastSubmittedAnswer" class="user-ans-text">{{ lastSubmittedAnswer }}</b>
+                    <em v-else class="user-ans-empty">(Chưa nhập đáp án / Hết giờ)</em>
+                  </div>
+
                   <small v-if="currentRoom.aliases" class="aliases-reveal">Tên khác: {{ currentRoom.aliases }}</small>
 
                   <!-- Audio Replay Control in Intermission -->
@@ -2120,5 +2172,64 @@ onUnmounted(() => {
   .vinyl-disc-wrapper.spinning {
     transform: none !important;
   }
+}
+
+/* Romaji & Player Answer Display */
+.romaji-badge {
+  display: inline-block;
+  font-size: 0.82em;
+  font-weight: 500;
+  color: #38bdf8;
+  margin-left: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 1px 8px;
+  border-radius: 6px;
+}
+
+.romaji-stage {
+  color: #38bdf8;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.user-answer-display-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: fit-content;
+}
+
+.user-answer-display-row.correct {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+.user-answer-display-row.wrong {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.user-ans-label {
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.user-ans-text {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.user-ans-empty {
+  font-style: italic;
+  opacity: 0.75;
 }
 </style>

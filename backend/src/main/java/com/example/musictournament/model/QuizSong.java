@@ -22,6 +22,9 @@ public class QuizSong {
     @Column(nullable = false, length = 255)
     private String artist;
 
+    @Column(length = 255)
+    private String romajiTitle;
+
     @Column(columnDefinition = "TEXT")
     private String aliases; // JSON array string or comma separated
 
@@ -77,6 +80,9 @@ public class QuizSong {
 
     public String getArtist() { return artist; }
     public void setArtist(String artist) { this.artist = artist; }
+
+    public String getRomajiTitle() { return romajiTitle; }
+    public void setRomajiTitle(String romajiTitle) { this.romajiTitle = romajiTitle; }
 
     public String getAliases() { return aliases; }
     public void setAliases(String aliases) { this.aliases = aliases; }
