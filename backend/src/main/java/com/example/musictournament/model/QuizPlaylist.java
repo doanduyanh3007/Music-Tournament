@@ -20,36 +20,37 @@ public class QuizPlaylist {
     @Column(nullable = false, length = 500)
     private String sourceUrl;
 
-    @Column(nullable = false)
+    @Column(name = "item_count")
     private Integer itemCount = 0;
 
-    @Column(nullable = false)
+    @Column(name = "total_found")
     private Integer totalFound = 0;
 
-    @Column(nullable = false)
+    @Column(name = "added_count")
     private Integer addedCount = 0;
 
-    @Column(nullable = false)
+    @Column(name = "duplicate_count")
     private Integer duplicateCount = 0;
 
-    @Column(nullable = false)
+    @Column(name = "error_count")
     private Integer errorCount = 0;
 
-    @Column(nullable = false)
+    @Column(name = "processed_count")
     private Integer processedCount = 0;
 
-    @Column(nullable = false, length = 50)
+    @Column(name = "sync_status", length = 50)
     private String syncStatus = "IDLE"; // "IDLE", "SYNCING", "COMPLETED", "ERROR"
 
+    @Column(name = "last_sync_at")
     private LocalDateTime lastSyncAt;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "last_error_message", columnDefinition = "TEXT")
     private String lastErrorMessage;
 
-    @Column(nullable = false)
+    @Column(name = "active")
     private Boolean active = true;
 
-    @Column(nullable = false)
+    @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public QuizPlaylist() {}
@@ -74,7 +75,7 @@ public class QuizPlaylist {
     public String getSourceUrl() { return sourceUrl; }
     public void setSourceUrl(String sourceUrl) { this.sourceUrl = sourceUrl; }
 
-    public Integer getItemCount() { return itemCount; }
+    public Integer getItemCount() { return itemCount != null ? itemCount : 0; }
     public void setItemCount(Integer itemCount) { this.itemCount = itemCount; }
 
     public Integer getTotalFound() { return totalFound != null ? totalFound : 0; }
