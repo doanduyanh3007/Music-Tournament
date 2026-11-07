@@ -36,73 +36,7 @@ async function fetchPools() {
 }
 
 // ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
-// ============================================================
 // 1. QUICK SEARCH & ADD TAB (YouTube & Spotify / iTunes)
-// ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
 // ============================================================
 const quickSearchQuery = ref('')
 const quickSearchFilter = ref('all') // 'all' | 'spotify' | 'youtube'
@@ -257,73 +191,7 @@ async function addSelectedQuickSongs(target = 'library') {
 }
 
 // ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
-// ============================================================
 // 2. BULK IMPORT TAB (Text lines / CSV / TXT upload)
-// ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
 // ============================================================
 const bulkText = ref('')
 const bulkParsedRows = ref([])
@@ -521,63 +389,6 @@ async function executeBulkImport() {
     bulkParsedRows.value = []
     bulkSelectedRows.value.clear()
     bulkText.value = ''
-    await fetchSongs(0)
-    await fetchGenres()
-
-    // Nếu bật tự động enrich và vẫn còn bài không có preview, chạy enrichment
-    if (bulkAutoEnrich.value) {
-      const missing = songs.value.filter(s => !s.previewUrl).length
-      if (missing > 0) {
-        showAlert(`Có ${missing} bài chưa có preview. Bắt đầu tự động bổ sung...`, 'info')
-        startEnrichment()
-      }
-    }
-  } catch (err) {
-    showAlert(err.message, 'error')
-  } finally {
-    bulkImporting.value = false
-  }
-}
-
-  const selected = Array.from(bulkSelectedRows.value).map(i => bulkParsedRows.value[i]).filter(Boolean)
-  if (selected.length === 0) {
-    showAlert('Chưa chọn bài hát nào để nhập!', 'error')
-    return
-  }
-
-  bulkImporting.value = true
-  try {
-    const payload = {
-      songs: selected.map(r => ({
-        title: r.title,
-        artist: r.artist,
-        youtubeUrl: r.youtubeUrl,
-        spotifyUrl: r.spotifyUrl,
-        link: r.link,
-        genre: r.genre || 'General',
-        artworkUrl: r.artworkUrl || null,
-        previewUrl: r.previewUrl || null
-      })),
-      quizPoolId: selectedPoolId.value,
-      addToQuizLibrary: true,
-      enrichMetadata: bulkAutoEnrich.value
-    }
-
-    const res = await fetch('/api/quiz/songs/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-
-    if (!res.ok) throw new Error('Lỗi khi nhập bài hát hàng loạt')
-    const result = await res.json()
-
-    showAlert(`Đã nhập xong: ${result.addedCount} bài mới, ${result.duplicateCount} bài trùng!`, 'success')
-    emit('add-to-tournament', selected)
-
-    bulkParsedRows.value = []
-    bulkSelectedRows.value.clear()
-    bulkText.value = ''
     fetchSongs(0)
   } catch (err) {
     showAlert(err.message, 'error')
@@ -587,87 +398,9 @@ async function executeBulkImport() {
 }
 
 // ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
-// ============================================================
 // 3. SONG LIBRARY TAB
 // ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
-// ============================================================
 const songs = ref([])
-// Sorting control for library view
-const sortKey = ref('none') // 'difficulty' | 'artist' | 'none'
-const sortedSongs = computed(() => {
-  if (sortKey.value === 'none') return songs.value
-  const arr = [...songs.value]
-  if (sortKey.value === 'difficulty') {
-    arr.sort((a, b) => (a.difficulty || 0) - (b.difficulty || 0))
-  } else if (sortKey.value === 'artist') {
-    arr.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''))
-  }
-  return arr
-})
 const totalElements = ref(0)
 const totalPages = ref(1)
 const currentPage = ref(0)
@@ -680,21 +413,68 @@ const selectedDiffTier = ref('')
 const activeOnly = ref(false)
 const availableGenres = ref([])
 
+// Sorting
+const selectedSort = ref('id_desc') // 'id_desc' | 'artist_asc' | 'artist_desc' | 'title_asc' | 'diff_asc' | 'diff_desc'
+
+// Bulk Enrich Preview
+const enrichInProgress = ref(false)
+const enrichStatus = ref({ isRunning: false, total: 0, processed: 0, enriched: 0, errors: 0, currentSong: '', lastMessage: '', missingPreviewCount: 0 })
+let enrichPollTimer = null
+
+async function checkEnrichStatus() {
+  try {
+    const res = await fetch('/api/quiz/songs/enrich-status')
+    if (res.ok) {
+      const data = await res.json()
+      enrichStatus.value = data
+      enrichInProgress.value = !!data.isRunning
+      if (!data.isRunning && enrichPollTimer) {
+        clearInterval(enrichPollTimer)
+        enrichPollTimer = null
+      }
+    }
+  } catch (e) {}
+}
+
+async function startEnrichment() {
+  if (enrichInProgress.value) return
+  try {
+    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
+    if (!res.ok) throw new Error('Không thể bắt đầu tìm preview')
+    enrichInProgress.value = true
+    showAlert('Đã bắt đầu tìm preview & bìa cho các bài hát!', 'info')
+    if (enrichPollTimer) clearInterval(enrichPollTimer)
+    enrichPollTimer = setInterval(async () => {
+      await checkEnrichStatus()
+      if (!enrichInProgress.value) {
+        showAlert('Hoàn tất tìm preview!', 'success')
+        fetchSongs(currentPage.value)
+      }
+    }, 2500)
+    await checkEnrichStatus()
+  } catch (err) {
+    showAlert(err.message, 'error')
+  }
+}
+
+async function enrichSingle(song) {
+  try {
+    showAlert(`Đang tìm preview cho "${song.title}"...`, 'info')
+    const res = await fetch(`/api/quiz/songs/${song.id}/enrich`, { method: 'POST' })
+    if (!res.ok) throw new Error('Không tìm thấy thông tin phù hợp')
+    const updated = await res.json()
+    const idx = songs.value.findIndex(s => s.id === song.id)
+    if (idx !== -1) {
+      songs.value[idx] = updated
+    }
+    showAlert(`Đã cập nhật bài hát "${song.title}"!`, 'success')
+  } catch (err) {
+    showAlert(err.message, 'error')
+  }
+}
+
 const playingSongId = ref(null)
 const libraryAudioElement = ref(null)
-
-// Enrichment status for missing previews
-const enrichInProgress = ref(false)
-const enrichStatus = ref({ total: 0, processed: 0, missing: 0 })
-const enrichPollTimer = ref(null)
-
-// Enrichment status for missing previews
-const enrichInProgress = ref(false)
-const enrichStatus = ref({ total: 0, processed: 0, missing: 0 })
-
-// Enrichment status for missing previews
-const enrichInProgress = ref(false)
-const enrichStatus = ref({ total: 0, processed: 0, missing: 0 })
 
 // Modal Add / Edit Song
 const showSongModal = ref(false)
@@ -728,12 +508,22 @@ async function fetchSongs(page = 0) {
     else if (selectedDiffTier.value === 'expert') { minDiff = 66; maxDiff = 85 }
     else if (selectedDiffTier.value === 'master') { minDiff = 86; maxDiff = 100 }
 
+    let sortBy = 'id'
+    let sortDir = 'desc'
+    if (selectedSort.value === 'artist_asc') { sortBy = 'artist'; sortDir = 'asc' }
+    else if (selectedSort.value === 'artist_desc') { sortBy = 'artist'; sortDir = 'desc' }
+    else if (selectedSort.value === 'title_asc') { sortBy = 'title'; sortDir = 'asc' }
+    else if (selectedSort.value === 'diff_asc') { sortBy = 'difficulty'; sortDir = 'asc' }
+    else if (selectedSort.value === 'diff_desc') { sortBy = 'difficulty'; sortDir = 'desc' }
+
     const params = new URLSearchParams({
       page: page.toString(),
       size: pageSize.value.toString(),
       query: searchQuery.value.trim(),
       genre: selectedGenre.value,
-      activeOnly: activeOnly.value ? 'true' : 'false'
+      activeOnly: activeOnly.value ? 'true' : 'false',
+      sortBy: sortBy,
+      sortDir: sortDir
     })
     if (minDiff !== '') params.append('minDiff', minDiff)
     if (maxDiff !== '') params.append('maxDiff', maxDiff)
@@ -752,36 +542,6 @@ async function fetchSongs(page = 0) {
 }
 
 async function fetchGenres() {
-  try {
-    const res = await fetch('/api/quiz/songs/genres')
-    if (res.ok) availableGenres.value = await res.json()
-  } catch (e) {}
-  // Add enrichment status polling (only when library tab active)
-  if (activeTab === 'library') {
-    // start polling for enrichment status every 5 seconds
-    const poll = setInterval(async () => {
-      if (!enrichInProgress.value) return
-      try {
-        const res = await fetch('/api/quiz/songs/enrich-status')
-        if (res.ok) {
-          const data = await res.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If enrichment completed, stop polling
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(poll)
-            showAlert('Hoàn tất bổ sung preview cho các bài hát!', 'success')
-            // Refresh library
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {}
-    }, 5000)
-    // store timer for cleanup on component destroy
-    onUnmounted(() => clearInterval(poll))
-  }
-}
-
   try {
     const res = await fetch('/api/quiz/songs/genres')
     if (res.ok) availableGenres.value = await res.json()
@@ -956,73 +716,7 @@ async function importFromTournaments() {
 }
 
 // ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
-// ============================================================
 // 4. PLAYLIST SYNC TAB (YouTube & Spotify)
-// ============================================================
-// 5. ENRICH MISSING PREVIEWS
-async function startEnrichment() {
-  if (enrichInProgress.value) return
-  enrichInProgress.value = true
-  showAlert('Bắt đầu bổ sung preview cho các bài chưa có...', 'info')
-  try {
-    const res = await fetch('/api/quiz/songs/enrich-all', { method: 'POST' })
-    if (!res.ok) throw new Error('Không thể khởi chạy việc bổ sung')
-    // Start polling for status
-    enrichPollTimer.value = setInterval(async () => {
-      try {
-        const statusRes = await fetch('/api/quiz/songs/enrich-status')
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          enrichStatus.value = { total: data.total, processed: data.processed, missing: data.missing }
-          // If done
-          if (data.processed >= data.total) {
-            enrichInProgress.value = false
-            clearInterval(enrichPollTimer.value)
-            showAlert('Hoàn tất bổ sung preview!', 'success')
-            fetchSongs(currentPage.value)
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 5000)
-  } catch (e) {
-    enrichInProgress.value = false
-    showAlert(e.message, 'error')
-  }
-}
 // ============================================================
 const playlists = ref([])
 const newPlaylistUrl = ref('')
@@ -1116,7 +810,7 @@ function getTierLabel(diff) {
 }
 
 // Watch filters in Library
-watch([searchQuery, selectedGenre, selectedDiffTier, activeOnly], () => {
+watch([searchQuery, selectedGenre, selectedDiffTier, activeOnly, selectedSort], () => {
   fetchSongs(0)
 })
 
@@ -1125,6 +819,7 @@ onMounted(() => {
   fetchGenres()
   fetchPlaylists()
   fetchPools()
+  checkEnrichStatus()
 
   // Polling for playlist sync progress
   syncPollingTimer = setInterval(() => {
@@ -1137,10 +832,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (syncPollingTimer) clearInterval(syncPollingTimer)
-  if (audioPreviewInstance) audioPreviewInstance.pause()
-  if (libraryAudioElement.value) libraryAudioElement.value.pause()
-  if (enrichPollTimer.value) clearInterval(enrichPollTimer.value)
-  if (syncPollingTimer) clearInterval(syncPollingTimer)
+  if (enrichPollTimer) clearInterval(enrichPollTimer)
   if (audioPreviewInstance) audioPreviewInstance.pause()
   if (libraryAudioElement.value) libraryAudioElement.value.pause()
 })
@@ -1498,12 +1190,66 @@ Sparkle – RADWIMPS"
           </select>
         </div>
 
+        <div class="filter-field">
+          <label>Sắp xếp:</label>
+          <select v-model="selectedSort" class="anime-select">
+            <option value="id_desc">Mới nhất (Mặc định)</option>
+            <option value="artist_asc">Ca sĩ (A → Z)</option>
+            <option value="artist_desc">Ca sĩ (Z → A)</option>
+            <option value="title_asc">Tên bài (A → Z)</option>
+            <option value="diff_asc">Độ khó: Thấp → Cao</option>
+            <option value="diff_desc">Độ khó: Cao → Thấp</option>
+          </select>
+        </div>
+
         <div class="filter-field checkbox-field">
           <label class="toggle-switch">
             <input type="checkbox" v-model="activeOnly" />
             <span class="slider"></span>
           </label>
           <span class="toggle-label">Chỉ bài đang bật</span>
+        </div>
+      </div>
+
+      <!-- Auto Enrich Banner / Action -->
+      <div class="enrich-action-bar">
+        <div class="enrich-info">
+          <span class="enrich-icon">⚡</span>
+          <div>
+            <div class="enrich-title">Tự động tìm link nghe thử (Preview MP3) & Bìa Album</div>
+            <p v-if="enrichStatus.missingPreviewCount > 0" class="enrich-subtitle">
+              Có <strong>{{ enrichStatus.missingPreviewCount }}</strong> bài trong kho chưa có link nghe thử.
+            </p>
+            <p v-else class="enrich-subtitle text-muted">
+              Kho nhạc sẵn sàng cho minigame Music Quiz đoán bài hát.
+            </p>
+          </div>
+        </div>
+
+        <button 
+          class="anime-btn btn-enrich" 
+          :disabled="enrichInProgress" 
+          @click="startEnrichment"
+        >
+          <span v-if="enrichInProgress" class="btn-spinner"></span>
+          <span>{{ enrichInProgress ? 'Đang quét tự động...' : '✨ Tìm link nghe thử (Auto-enrich)' }}</span>
+        </button>
+      </div>
+
+      <!-- Live progress card if running -->
+      <div v-if="enrichInProgress" class="enrich-progress-card">
+        <div class="progress-header">
+          <span>{{ enrichStatus.lastMessage || 'Đang quét bổ sung preview qua Spotify & YouTube...' }}</span>
+          <span class="progress-count">{{ enrichStatus.processed }} / {{ enrichStatus.total }}</span>
+        </div>
+        <div class="progress-bar-track">
+          <div 
+            class="progress-bar-fill" 
+            :style="{ width: (enrichStatus.total > 0 ? (enrichStatus.processed / enrichStatus.total * 100) : 0) + '%' }"
+          ></div>
+        </div>
+        <div class="progress-detail" v-if="enrichStatus.currentSong">
+          Bài hiện tại: <em>{{ enrichStatus.currentSong }}</em>
         </div>
       </div>
 
@@ -1590,6 +1336,13 @@ Sparkle – RADWIMPS"
 
           <!-- Active Toggle & Actions -->
           <div class="song-actions-cell">
+            <button 
+              class="action-icon-btn enrich-btn" 
+              @click="enrichSingle(song)" 
+              title="Tìm lại link nghe thử & bìa bài hát này"
+            >
+              ⚡
+            </button>
             <label class="toggle-switch small" :title="song.active ? 'Bài đang bật' : 'Bài đang tắt'">
               <input type="checkbox" :checked="song.active" @change="toggleActive(song)" />
               <span class="slider"></span>
@@ -2533,6 +2286,129 @@ Sparkle – RADWIMPS"
 /* ======================================================== */
 /* TAB 3: LIBRARY STYLES                                     */
 /* ======================================================== */
+/* Enrich UI */
+.enrich-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(255, 180, 0, 0.08), rgba(255, 107, 107, 0.05));
+  border: 1px solid rgba(255, 180, 0, 0.25);
+  border-radius: 12px;
+  padding: 0.9rem 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.enrich-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.enrich-icon {
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 8px rgba(255, 200, 0, 0.6));
+}
+
+.enrich-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.enrich-subtitle {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.85rem;
+  color: #ffb86c;
+}
+
+.enrich-subtitle.text-muted {
+  color: #8be9fd;
+}
+
+.btn-enrich {
+  background: linear-gradient(135deg, #ff9900, #ff5555);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(255, 120, 0, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-enrich:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 120, 0, 0.45);
+}
+
+.btn-enrich:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.enrich-progress-card {
+  background: rgba(18, 18, 28, 0.9);
+  border: 1px solid rgba(255, 180, 0, 0.3);
+  border-radius: 10px;
+  padding: 0.85rem 1.2rem;
+  margin-bottom: 1.25rem;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #f8f8f2;
+  margin-bottom: 0.45rem;
+}
+
+.progress-count {
+  color: #50fa7b;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff79c6, #bd93f9, #50fa7b);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-detail {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #8be9fd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-icon-btn.enrich-btn {
+  background: rgba(255, 184, 108, 0.15);
+  border: 1px solid rgba(255, 184, 108, 0.3);
+  color: #ffb86c;
+}
+
+.action-icon-btn.enrich-btn:hover {
+  background: rgba(255, 184, 108, 0.3);
+  transform: scale(1.1);
+}
+
 .filter-bar-card {
   display: flex;
   align-items: center;

@@ -26,10 +26,12 @@ public class QuizSongController {
             @RequestParam(required = false) Integer minDiff,
             @RequestParam(required = false) Integer maxDiff,
             @RequestParam(required = false) Boolean activeOnly,
+            @RequestParam(required = false, defaultValue = "id") String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        Page<QuizSong> result = musicManagerService.getSongs(query, genre, minDiff, maxDiff, activeOnly, page, size);
+        Page<QuizSong> result = musicManagerService.getSongs(query, genre, minDiff, maxDiff, activeOnly, sortBy, sortDir, page, size);
         return Map.of(
                 "content", result.getContent(),
                 "page", result.getNumber(),

@@ -105,7 +105,24 @@ public class QuizMusicManagerService {
     // ==========================================
 
     public Page<QuizSong> getSongs(String query, String genre, Integer minDiff, Integer maxDiff, Boolean activeOnly, int page, int size) {
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "id"));
+        return getSongs(query, genre, minDiff, maxDiff, activeOnly, "id", "desc", page, size);
+    }
+
+    public Page<QuizSong> getSongs(String query, String genre, Integer minDiff, Integer maxDiff, Boolean activeOnly, String sortBy, String sortDir, int page, int size) {
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String property = "id";
+        if ("artist".equalsIgnoreCase(sortBy)) {
+            property = "artist";
+        } else if ("title".equalsIgnoreCase(sortBy)) {
+            property = "title";
+        } else if ("difficulty".equalsIgnoreCase(sortBy)) {
+            property = "difficulty";
+        }
+        Sort sort = Sort.by(direction, property);
+        if (!"id".equalsIgnoreCase(property)) {
+            sort = sort.and(Sort.by(Sort.Direction.DESC, "id"));
+        }
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), sort);
         return quizSongRepository.searchSongs(query, genre, minDiff, maxDiff, activeOnly, pageable);
     }
 
