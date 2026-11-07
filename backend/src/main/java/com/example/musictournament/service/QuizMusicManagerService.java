@@ -53,6 +53,12 @@ public class QuizMusicManagerService {
     );
     private static final Pattern SPOTIFY_PLAYLIST_PATTERN = Pattern.compile("(?:playlist|album)[:/]([a-zA-Z0-9]+)");
 
+    @org.springframework.beans.factory.annotation.Value("${spotify.client-id:}")
+    private String spotifyClientId;
+
+    @org.springframework.beans.factory.annotation.Value("${spotify.client-secret:}")
+    private String spotifyClientSecret;
+
     public QuizMusicManagerService(
             QuizSongRepository quizSongRepository,
             QuizPlaylistRepository quizPlaylistRepository,
@@ -654,6 +660,88 @@ public class QuizMusicManagerService {
         return null;
     }
 
+    private List<RawTrackItem> fetchSpotifyPlaylistTracksViaOfficialApi(String playlistId) {
+        if (spotifyClientId == null || spotifyClientId.isBlank() || spotifyClientSecret == null || spotifyClientSecret.isBlank()) {
+            return null;
+        }
+        try {
+            String auth = Base64.getEncoder().encodeToString((spotifyClientId.trim() + ":" + spotifyClientSecret.trim()).getBytes(StandardCharsets.UTF_8));
+            HttpRequest tokenReq = HttpRequest.newBuilder()
+                    .uri(URI.create("https://accounts.spotify.com/api/token"))
+                    .header("Authorization", "Basic " + auth)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString("grant_type=client_credentials"))
+                    .timeout(Duration.ofSeconds(6))
+                    .build();
+
+            HttpResponse<String> tokenResp = httpClient.send(tokenReq, HttpResponse.BodyHandlers.ofString());
+            if (tokenResp.statusCode() != 200 || tokenResp.body() == null) return null;
+
+            JsonNode tokenJson = objectMapper.readTree(tokenResp.body());
+            String token = tokenJson.path("access_token").asText(null);
+            if (token == null || token.isBlank()) return null;
+
+            List<RawTrackItem> list = new ArrayList<>();
+            int offset = 0;
+            int limit = 100;
+            int total = Integer.MAX_VALUE;
+
+            while (offset < total) {
+                String apiUrl = "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks?offset=" + offset + "&limit=" + limit;
+                HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(apiUrl))
+                        .header("Authorization", "Bearer " + token)
+                        .timeout(Duration.ofSeconds(10))
+                        .GET()
+                        .build();
+
+                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 429) {
+                    long retry = resp.headers().firstValueAsLong("Retry-After").orElse(2L);
+                    Thread.sleep(retry * 1000L);
+                    continue;
+                }
+                if (resp.statusCode() != 200 || resp.body() == null) break;
+
+                JsonNode root = objectMapper.readTree(resp.body());
+                total = root.path("total").asInt(total);
+                JsonNode items = root.path("items");
+                if (!items.isArray() || items.isEmpty()) break;
+
+                for (JsonNode item : items) {
+                    JsonNode track = item.path("track");
+                    if (track.isMissingNode() || track.isNull()) continue;
+                    String title = track.path("name").asText("").trim();
+                    List<String> artists = new ArrayList<>();
+                    track.path("artists").forEach(a -> {
+                        String an = a.path("name").asText("").trim();
+                        if (!an.isEmpty()) artists.add(an);
+                    });
+                    String artist = !artists.isEmpty() ? String.join(", ", artists) : "Spotify Artist";
+                    String spotifyUrl = track.path("external_urls").path("spotify").asText("");
+                    String previewUrl = track.path("preview_url").asText(null);
+                    String artwork = null;
+                    JsonNode imgs = track.path("album").path("images");
+                    if (imgs.isArray() && !imgs.isEmpty()) {
+                        artwork = imgs.get(0).path("url").asText(null);
+                    }
+                    if (!title.isEmpty()) {
+                        list.add(new RawTrackItem(title, artist, null, spotifyUrl, artwork, previewUrl));
+                    }
+                }
+
+                offset += limit;
+                if (offset < total) {
+                    Thread.sleep(100);
+                }
+            }
+
+            return list.isEmpty() ? null : list;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private List<RawTrackItem> fetchSpotifyPlaylistTracks(String url) throws Exception {
         List<RawTrackItem> results = new ArrayList<>();
         Set<String> seenUris = new HashSet<>();
@@ -662,6 +750,15 @@ public class QuizMusicManagerService {
         if (m.find()) {
             String type = url.contains("album") ? "album" : "playlist";
             String entityId = m.group(1);
+
+            // Attempt official API if configured (supports up to thousands of tracks with pagination)
+            if ("playlist".equals(type)) {
+                List<RawTrackItem> apiTracks = fetchSpotifyPlaylistTracksViaOfficialApi(entityId);
+                if (apiTracks != null && !apiTracks.isEmpty()) {
+                    return apiTracks;
+                }
+            }
+
             String embedUrl = "https://open.spotify.com/embed/" + type + "/" + entityId;
 
             HttpRequest req = HttpRequest.newBuilder()
